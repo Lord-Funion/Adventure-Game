@@ -14,11 +14,11 @@ Adventure Game
        \____/\__,_/_/ /_/ /_/\___/
 ```
 
-This project now has four versions:
+This branch contains the current modular version:
 
 - `main.py` runs the reorganized text adventure.
 - `text_adventure/` contains the readable modular Python game code.
-- `legacy/` keeps a runnable copy of the older text game files.
+- The older one-file version lives on the `legacy` git branch.
 
 Run the text game:
 
@@ -63,7 +63,10 @@ TEXT_ADVENTURE_SPEED=fast python3 main.py
 TEXT_ADVENTURE_SPEED=instant python3 main.py
 ```
 
-Run the preserved legacy version:
+Use the legacy branch:
 
 ```bash
-python3 legacy/main.py
+git switch legacy
+python3 main.py
+git switch main
+```

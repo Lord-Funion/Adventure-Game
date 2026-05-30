@@ -226,7 +226,7 @@
       <a href="#data">Spells, Monsters, And Loot</a>
       <a href="#files">File By File Guide</a>
       <a href="#functions">Function Reference</a>
-      <a href="#legacy">Legacy Files</a>
+      <a href="#legacy">Legacy Branch</a>
       <a href="#saves">Save And Cloud Notes</a>
     </nav>
 
@@ -249,7 +249,7 @@ TEXT_ADVENTURE_SPEED=instant python3 main.py</code></pre>
     <section id="edit">
       <h2>How To Edit The Code</h2>
       <div class="callout">
-        <p>Edit the active game files in <code>text_adventure/</code>. The <code>legacy/</code> folder is an older preserved version, and the root <code>fight.py</code> is not used by the active <code>main.py</code>.</p>
+        <p>Edit the active game files in <code>text_adventure/</code>. The older one-file game is preserved on the <code>legacy</code> git branch instead of in a folder on <code>main</code>.</p>
       </div>
 
       <h3>Common Changes</h3>
@@ -616,7 +616,7 @@ TEXT_ADVENTURE_SPEED=instant python3 main.py</code></pre>
           </tr>
           <tr>
             <td><code>README.md</code></td>
-            <td>Short Markdown project overview with basic run, save, cloud, and legacy instructions.</td>
+            <td>Short Markdown project overview with basic run, save, cloud, and branch instructions.</td>
           </tr>
           <tr>
             <td><code>main.py</code></td>
@@ -665,18 +665,6 @@ TEXT_ADVENTURE_SPEED=instant python3 main.py</code></pre>
           <tr>
             <td><code>text_adventure/logo.py</code></td>
             <td>Prints the ASCII startup logo unless <code>TEXT_ADVENTURE_HIDE_LOGO</code> is set.</td>
-          </tr>
-          <tr>
-            <td><code>fight.py</code></td>
-            <td>Older combat helper left at the project root. It is not imported by the active root <code>main.py</code>.</td>
-          </tr>
-          <tr>
-            <td><code>legacy/</code></td>
-            <td>Preserved older version of the game. Use it for comparison, not for active feature work.</td>
-          </tr>
-          <tr>
-            <td><code>legacy/README.html</code> and <code>legacy/README.md</code></td>
-            <td>Older README files kept with the legacy copy.</td>
           </tr>
           <tr>
             <td><code>assets/logo.png</code></td>
@@ -1878,70 +1866,15 @@ TEXT_ADVENTURE_SPEED=instant python3 main.py</code></pre>
     </section>
 
     <section id="legacy">
-      <h2>Legacy Files</h2>
-      <p>The <code>legacy/</code> folder keeps an older runnable copy of the game. It is useful if you want to compare the old one-file style to the newer modular style.</p>
+      <h2>Legacy Branch</h2>
+      <p>The older one-file version is preserved on the <code>legacy</code> git branch instead of in a folder on <code>main</code>.</p>
 
-      <p>Run the preserved legacy version:</p>
-      <pre><code>python3 legacy/main.py</code></pre>
+      <p>Switch to the legacy branch and run it from the project root:</p>
+      <pre><code>git switch legacy
+python3 main.py</code></pre>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Legacy file or variable</th>
-            <th>What it does</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>legacy/main.py</code> and <code>legacy/main_legacy.py</code></td>
-            <td>Older story script with most state, monster lists, shop stock, and story flow in one long file.</td>
-          </tr>
-          <tr>
-            <td><code>legacy/fight.py</code> and <code>legacy/fight_legacy.py</code></td>
-            <td>Older potion, stats, and spell combat helpers used by the legacy game.</td>
-          </tr>
-          <tr>
-            <td><code>player</code></td>
-            <td>Legacy player dictionary. It starts with much higher money and mana than the active game.</td>
-          </tr>
-          <tr>
-            <td><code>spells</code></td>
-            <td>Legacy spell dictionary, similar to active <code>SPELLS</code>.</td>
-          </tr>
-          <tr>
-            <td><code>lootable_drops</code> / <code>drops</code></td>
-            <td>Legacy lists of loot item names.</td>
-          </tr>
-          <tr>
-            <td><code>monsters</code> and <code>monsterDamage</code></td>
-            <td>Parallel legacy lists where the same index means the monster name and its damage.</td>
-          </tr>
-          <tr>
-            <td><code>goblinAttacks</code>, <code>trollAttacks</code>, and similar lists</td>
-            <td>Legacy attack name lists. A random attack is selected and stored in variables like <code>goblinAttack</code>.</td>
-          </tr>
-          <tr>
-            <td><code>stock1</code> through <code>stock6</code></td>
-            <td>Legacy booleans for whether shop items are still available.</td>
-          </tr>
-          <tr>
-            <td><code>sell_scraps(player)</code></td>
-            <td>Legacy function that sells loot items from the backpack for random money.</td>
-          </tr>
-          <tr>
-            <td><code>PPS(player)</code></td>
-            <td>Legacy "Print Player Stats" function.</td>
-          </tr>
-          <tr>
-            <td><code>potions(player)</code></td>
-            <td>Legacy potion menu.</td>
-          </tr>
-          <tr>
-            <td><code>spellFight(monster, monsterDamage, monsterAttack, player, monsters, spells)</code></td>
-            <td>Legacy combat function. It uses list indexes for monsters instead of the active game's monster-name dictionary.</td>
-          </tr>
-        </tbody>
-      </table>
+      <p>Return to the current modular game:</p>
+      <pre><code>git switch main</code></pre>
     </section>
 
     <section id="saves">
