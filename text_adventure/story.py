@@ -566,6 +566,11 @@ def _run_scene(scene_id, player, shop_stock):
 
 def _finish_game(player):
     say("\nYou make it through the corridor alive. The road ahead is finally quiet.", "scene")
+    say(
+        "\nAdventure Game is still currently being developed by "
+        "Thunderstruck7 and Lord Funion. Check back later for more.",
+        "scene",
+    )
     say(f"\nTHE END\nYou finished with {Fore.YELLOW}${player['money']}{Style.RESET_ALL}.", "none")
 
 

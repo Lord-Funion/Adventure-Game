@@ -143,6 +143,13 @@
       margin-bottom: 14px;
     }
 
+    .project-logo {
+      display: block;
+      width: min(260px, 72vw);
+      height: auto;
+      margin: 0 auto 28px;
+    }
+
     .ascii-logo {
       width: max-content;
       max-width: 100%;
@@ -205,16 +212,7 @@
 </head>
 <body>
   <main>
-    <pre class="ascii-logo" aria-label="Adventure Game ASCII logo">    ___       __                 __
-   /   | ____/ /   _____  ____  / /___  __________
-  / /| |/ __  / | / / _ \/ __ \/ __/ / / / ___/ _ \
- / ___ / /_/ /| |/ /  __/ / / / /_/ /_/ / /  /  __/
-/_/  |_\__,_/ |___/\___/_/ /_/\__/\__,_/_/   \___/
-          ______
-         / ____/___ _____ ___  ___
-        / / __/ __ `/ __ `__ \/ _ \
-       / /_/ / /_/ / / / / / /  __/
-       \____/\__,_/_/ /_/ /_/\___/</pre>
+    <img class="project-logo" src="assets/logo.png" alt="Adventure Game logo">
 
     <h1>Adventure Game Code Guide</h1>
     <p class="subtitle">This file explains how to run the game, where to make common edits, what every active Python file does, and what the important functions and variables control.</p>
