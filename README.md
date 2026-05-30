@@ -5,17 +5,38 @@ Adventure Game
   <img src="assets/logo.png" alt="Adventure Game logo" width="260">
 </p>
 
-This branch contains the current modular version:
+This `Web-Port` branch contains the current modular Python game plus an HTML5
+terminal-style browser port:
 
 - `main.py` runs the reorganized text adventure.
 - `text_adventure/` contains the readable modular Python game code.
+- `index.html` runs the browser version.
+- `web/` contains the browser version's CSS and JavaScript.
 - The older one-file version lives on the `legacy` git branch.
 
-Run the text game:
+Run the Python text game:
 
 ```bash
 python3 main.py
 ```
+
+Run the HTML5 web port locally:
+
+```bash
+python3 -m http.server 4173
+```
+
+Then open:
+
+```text
+http://127.0.0.1:4173/
+```
+
+To host it at `lordfunion.dev/adventure-game`, upload these from the
+`Web-Port` branch into `public_html/adventure-game/`:
+
+- `index.html`
+- `web/`
 
 The game now creates encrypted checkpoint saves in `saves/`. Checkpoints appear
 between story scenes, and the main menu can load existing `.tasave` files.

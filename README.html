@@ -233,6 +233,14 @@
       <p>The active version is the reorganized Python game. Run it from this project folder:</p>
       <pre><code>python3 main.py</code></pre>
 
+      <p>The <code>Web-Port</code> branch also includes an HTML5 terminal-style browser version. Run it locally:</p>
+      <pre><code>python3 -m http.server 4173</code></pre>
+
+      <p>Then open:</p>
+      <pre><code>http://127.0.0.1:4173/</code></pre>
+
+      <p>To host it at <code>lordfunion.dev/adventure-game</code>, upload <code>index.html</code> and <code>web/</code> from this branch into <code>public_html/adventure-game/</code>.</p>
+
       <p>Load a local encrypted save directly:</p>
       <pre><code>python3 main.py saves/autosave.tasave</code></pre>
 
@@ -619,6 +627,18 @@ TEXT_ADVENTURE_SPEED=instant python3 main.py</code></pre>
           <tr>
             <td><code>main.py</code></td>
             <td>Small launcher for the active game. It fixes Windows console color support, reads an optional save path from the command line, and calls <code>run_game()</code>.</td>
+          </tr>
+          <tr>
+            <td><code>index.html</code></td>
+            <td>Entry point for the HTML5 web port. It loads the terminal-style browser UI.</td>
+          </tr>
+          <tr>
+            <td><code>web/styles.css</code></td>
+            <td>Terminal-style web layout, colors, monospace typography, and responsive behavior.</td>
+          </tr>
+          <tr>
+            <td><code>web/app.js</code></td>
+            <td>JavaScript port of the story, combat, shops, menus, browser-local saves, and cloud save calls.</td>
           </tr>
           <tr>
             <td><code>text_adventure/__init__.py</code></td>

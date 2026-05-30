@@ -1,0 +1,116 @@
+:root {
+  color-scheme: dark;
+  --terminal-bg: #050505;
+  --terminal-fg: #f2f2f2;
+  --terminal-muted: #888;
+  --terminal-dim: #626262;
+  --terminal-red: #ff5f5f;
+  --terminal-blue: #5f87ff;
+  --terminal-cyan: #87dfff;
+  --terminal-magenta: #ff87ff;
+  --terminal-green: #87ff87;
+  --terminal-yellow: #ffd75f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--terminal-bg);
+}
+
+body {
+  overflow: hidden;
+  color: var(--terminal-fg);
+  font-family: "Courier New", Courier, monospace;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.terminal {
+  width: 100vw;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 18px 20px 32px;
+  background: var(--terminal-bg);
+}
+
+.terminal-output {
+  min-height: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.terminal-line,
+.terminal-input-line {
+  min-height: 1.35em;
+  white-space: pre-wrap;
+}
+
+.terminal-input-form {
+  display: inline;
+}
+
+.terminal-input {
+  width: min(42ch, calc(100vw - 48px));
+  margin: 0;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--terminal-fg);
+  caret-color: var(--terminal-fg);
+  font: inherit;
+}
+
+.terminal-input::selection,
+.terminal-line::selection {
+  background: #d7d7d7;
+  color: #050505;
+}
+
+.logo {
+  color: var(--terminal-yellow);
+}
+
+.red {
+  color: var(--terminal-red);
+}
+
+.blue {
+  color: var(--terminal-blue);
+}
+
+.cyan {
+  color: var(--terminal-cyan);
+}
+
+.magenta {
+  color: var(--terminal-magenta);
+}
+
+.green {
+  color: var(--terminal-green);
+}
+
+.yellow {
+  color: var(--terminal-yellow);
+}
+
+.dim {
+  color: var(--terminal-dim);
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+
+  .terminal {
+    padding: 14px 12px 28px;
+  }
+}
