@@ -1,0 +1,188 @@
+Adventure Game Changelog
+========================
+
+Generated from git history across all local and remote branches.
+
+Branches included:
+- Web-Port
+- main
+- legacy
+
+
+2026-05-30 10:55:49 - c9ba9de - Make web port menu choices clickable
+--------------------------------------------------------------------
+Branch: Web-Port
+Author: lordfunion
+
+Summary:
+- Made web-port menu rows clickable.
+- Made combat spell rows clickable.
+- Kept typed input working, so players can still type numbers, commands, or spell names.
+- Added hover/focus styling for clickable terminal rows.
+- Documented clickable rows in README.md and README.html.
+
+Files changed:
+- README.html
+- README.md
+- web/app.js
+- web/styles.css
+
+Stats:
+- 68 insertions
+- 5 deletions
+
+
+2026-05-30 10:16:10 - 1ff0bae - Add HTML5 terminal web port
+------------------------------------------------------------
+Branch: Web-Port
+Author: lordfunion
+
+Summary:
+- Added an HTML5 browser version of the game.
+- Kept the web version styled like a terminal: black background, monospace text, ASCII logo, terminal prompts, and colored stat text.
+- Ported the current story flow, menus, checkpoints, combat, shops, stats, potions, local browser saves, and cloud save calls to JavaScript.
+- Added hosting instructions for putting the game at lordfunion.dev/adventure-game.
+
+Files changed:
+- README.html
+- README.md
+- index.html
+- web/app.js
+- web/styles.css
+
+Stats:
+- 2,079 insertions
+- 2 deletions
+
+
+2026-05-30 09:40:12 - 774911b - Add ending development note and README logo
+----------------------------------------------------------------------------
+Branch: main
+Author: lordfunion
+
+Summary:
+- Added the message after the current final witch encounter:
+  "Adventure Game is still currently being developed by Thunderstruck7 and Lord Funion. Check back later for more."
+- Added assets/logo.png to README.md.
+- Added assets/logo.png to README.html.
+- Replaced the old ASCII README header art with the image logo in the README files.
+
+Files changed:
+- README.html
+- README.md
+- text_adventure/story.py
+
+Stats:
+- 16 insertions
+- 22 deletions
+
+
+2026-05-30 09:28:57 - f42c52f - Move legacy game to separate branch
+--------------------------------------------------------------------
+Branch: main
+Author: lordfunion
+
+Summary:
+- Removed the legacy/ folder from main.
+- Removed the unused root fight.py from main.
+- Updated README.md and README.html to explain that the old one-file version lives on the legacy git branch.
+- Left main focused on the current modular game only.
+
+Files changed:
+- README.html
+- README.md
+- fight.py
+- legacy/README.html
+- legacy/README.md
+- legacy/fight.py
+- legacy/fight_legacy.py
+- legacy/main.py
+- legacy/main_legacy.py
+
+Stats:
+- 17 insertions
+- 2,388 deletions
+
+
+2026-05-30 09:26:31 - 624fec5 - Move legacy game to branch root
+----------------------------------------------------------------
+Branch: legacy
+Author: lordfunion
+
+Summary:
+- Created the legacy branch version of the project.
+- Moved the old game files out of legacy/ and into the branch root.
+- Removed the modular text_adventure/ package from the legacy branch.
+- Removed assets/logo.png from the legacy branch.
+- Updated the legacy README files so the legacy branch runs with python3 main.py.
+
+Files changed:
+- README.html
+- README.md
+- assets/logo.png
+- legacy/fight_legacy.py -> fight_legacy.py
+- legacy/main_legacy.py -> main_legacy.py
+- legacy/README.html
+- legacy/README.md
+- legacy/fight.py
+- legacy/main.py
+- main.py
+- text_adventure/__init__.py
+- text_adventure/cloud_saves.py
+- text_adventure/combat.py
+- text_adventure/data.py
+- text_adventure/logo.py
+- text_adventure/pacing.py
+- text_adventure/player.py
+- text_adventure/save_system.py
+- text_adventure/shop.py
+- text_adventure/story.py
+- text_adventure/ui.py
+
+Stats:
+- 763 insertions
+- 5,182 deletions
+
+
+2026-05-30 09:18:44 - 0e58909 - Add game files
+------------------------------------------------
+Branch: original shared history
+Author: lordfunion
+
+Summary:
+- Added the initial project files to git.
+- Added README.md and README.html.
+- Added assets/logo.png.
+- Added the active Python launcher main.py.
+- Added the modular text_adventure package.
+- Added the older root fight.py helper.
+- Added the legacy folder with older game files.
+- Added .gitignore entries for Python caches, save files, settings, and server config.
+
+Files created:
+- .gitignore
+- README.html
+- README.md
+- assets/logo.png
+- fight.py
+- legacy/README.html
+- legacy/README.md
+- legacy/fight.py
+- legacy/fight_legacy.py
+- legacy/main.py
+- legacy/main_legacy.py
+- main.py
+- text_adventure/__init__.py
+- text_adventure/cloud_saves.py
+- text_adventure/combat.py
+- text_adventure/data.py
+- text_adventure/logo.py
+- text_adventure/pacing.py
+- text_adventure/player.py
+- text_adventure/save_system.py
+- text_adventure/shop.py
+- text_adventure/story.py
+- text_adventure/ui.py
+
+Stats:
+- 6,494 insertions
