@@ -1,0 +1,817 @@
+"""Main story flow for the text adventure.
+
+Each scene is a small function. That keeps the story readable and makes it
+easier to change one encounter without scrolling through the whole game.
+"""
+
+import getpass
+import random
+from pathlib import Path
+
+from colorama import Fore, Style
+
+from . import cloud_saves
+from .combat import game_over, spell_fight
+from .logo import show_startup_logo
+from .pacing import ask, say
+from .player import add_spell, create_player, offer_potions, print_stats
+from .save_system import (
+    SaveError,
+    default_save_path,
+    list_save_files,
+    load_game,
+    load_game_text,
+    make_save_text,
+    path_from_player_input,
+    write_save_text,
+)
+from .shop import run_shop
+from .ui import MenuOption, ask_choice, choose_menu
+
+
+FINISHED_SCENE = "finished"
+SCENE_ORDER = (
+    "intro",
+    "wizard",
+    "locked_door",
+    "first_goblin",
+    "village",
+    "forest",
+    "twin_doors",
+    "witch",
+)
+SCENE_TITLES = {
+    "intro": "Chocolate Frog",
+    "wizard": "Rumblerod",
+    "locked_door": "Locked Door",
+    "first_goblin": "First Goblin",
+    "village": "Village",
+    "forest": "Forest Trail",
+    "twin_doors": "Twin Doors",
+    "witch": "Witch",
+    FINISHED_SCENE: "Finished Game",
+}
+
+
+def yes_no(prompt):
+    """Ask a yes/no question until the player gives a valid answer."""
+    return ask_choice(
+        prompt,
+        {
+            "yes": ("yes", "y", "1"),
+            "no": ("no", "n", "2"),
+        },
+        "\nPlease answer yes or no.",
+    )
+
+
+def fight_or_run(prompt="\nDo you fight or run? "):
+    """Ask for a combat choice until it is valid."""
+    return ask_choice(
+        prompt,
+        {
+            "fight": ("fight", "f", "1"),
+            "run": ("run", "r", "2"),
+        },
+        "\nPlease choose fight or run.",
+    )
+
+
+def choose_left_or_right(prompt):
+    """Ask for a path or door choice until it is valid."""
+    return ask_choice(
+        prompt,
+        {
+            "left": ("left", "l", "1"),
+            "right": ("right", "r", "2"),
+        },
+        "\nPlease choose left or right.",
+    )
+
+
+def _create_shop_stock():
+    return {
+        "Arcane Blast": True,
+        "Thunderstorm": True,
+        "Restoration Incantation": True,
+        "Glorious Helmet": True,
+        "Mage Boots": True,
+    }
+
+
+def _new_state():
+    return {
+        "player": create_player(),
+        "shop_stock": _create_shop_stock(),
+        "next_scene": SCENE_ORDER[0],
+    }
+
+
+def _scene_title(scene_id):
+    return SCENE_TITLES.get(scene_id, scene_id.replace("_", " ").title())
+
+
+def _next_scene(scene_id):
+    index = SCENE_ORDER.index(scene_id)
+    if index + 1 >= len(SCENE_ORDER):
+        return FINISHED_SCENE
+    return SCENE_ORDER[index + 1]
+
+
+def _normalize_int(value, name):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise SaveError(f"Save field '{name}' is not a valid number.")
+    return value
+
+
+def _normalize_string_list(value, name):
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise SaveError(f"Save field '{name}' is not a valid list.")
+    return list(value)
+
+
+def _normalize_state(raw_state):
+    if not isinstance(raw_state, dict):
+        raise SaveError("The save does not contain game state.")
+
+    raw_player = raw_state.get("player")
+    if not isinstance(raw_player, dict):
+        raise SaveError("The save does not contain a valid player.")
+
+    player = create_player()
+    for key in ("money", "health", "healthMax", "mana", "manaMax", "armor", "extraDamage"):
+        player[key] = _normalize_int(raw_player.get(key, player[key]), key)
+    player["backpack"] = _normalize_string_list(raw_player.get("backpack", []), "backpack")
+    player["spells"] = _normalize_string_list(raw_player.get("spells", []), "spells")
+
+    raw_stock = raw_state.get("shop_stock", {})
+    if not isinstance(raw_stock, dict):
+        raise SaveError("The save does not contain valid shop stock.")
+
+    shop_stock = _create_shop_stock()
+    for item_name in shop_stock:
+        value = raw_stock.get(item_name, shop_stock[item_name])
+        if not isinstance(value, bool):
+            raise SaveError(f"Save field '{item_name}' is not valid shop stock.")
+        shop_stock[item_name] = value
+
+    next_scene = raw_state.get("next_scene")
+    if next_scene not in SCENE_ORDER and next_scene != FINISHED_SCENE:
+        raise SaveError("The save points to an unknown story checkpoint.")
+
+    return {
+        "player": player,
+        "shop_stock": shop_stock,
+        "next_scene": next_scene,
+    }
+
+
+def _load_state_from_payload(payload):
+    if not isinstance(payload, dict):
+        raise SaveError("The save payload is not valid.")
+    if payload.get("game") != "Adventure Game":
+        raise SaveError("This save belongs to a different game.")
+    return _normalize_state(payload.get("state"))
+
+
+def _load_state_from_path(path):
+    return _load_state_from_payload(load_game(path))
+
+
+def _load_state_from_text(save_text):
+    return _load_state_from_payload(load_game_text(save_text))
+
+
+def _save_detail(path):
+    try:
+        payload = load_game(path)
+        state = _normalize_state(payload.get("state"))
+    except SaveError:
+        return "unreadable or tampered"
+
+    player = state["player"]
+    saved_at = payload.get("saved_at", "unknown time")
+    return f"{_scene_title(state['next_scene'])}, ${player['money']}, saved {saved_at}"
+
+
+def _save_state_interactive(state):
+    suggested_path = default_save_path()
+    typed_path = ask(f"\nSave name or path [{suggested_path.name}]: ")
+    path = suggested_path if not typed_path else path_from_player_input(typed_path, for_save=True)
+    save_text = make_save_text(state)
+
+    try:
+        final_path = write_save_text(save_text, path)
+    except OSError as exc:
+        say(f"\nSave failed: {exc}", "quick")
+        return
+
+    say(f"\nSaved encrypted checkpoint to {final_path}.", "quick")
+    if cloud_saves.is_signed_in():
+        try:
+            cloud_saves.upload_save(final_path.stem, save_text)
+        except cloud_saves.CloudSaveError as exc:
+            say(f"\nCloud sync failed: {exc}", "quick")
+        else:
+            say(f"\nSynced cloud save slot '{final_path.stem}'.", "quick")
+
+
+def _cloud_status():
+    try:
+        api_url = cloud_saves.current_api_url()
+    except cloud_saves.CloudSaveError as exc:
+        api_part = f"API URL problem: {exc}"
+    else:
+        api_part = f"API: {api_url}"
+
+    if cloud_saves.is_signed_in():
+        account_part = f"Signed in: {cloud_saves.current_username()}"
+    else:
+        account_part = "Not signed in"
+    return f"{api_part} | {account_part}"
+
+
+def _cloud_register():
+    username = ask("\nChoose cloud username: ")
+    if not username:
+        say("\nNo username entered.", "quick")
+        return
+
+    password = getpass.getpass("Choose cloud password: ").strip()
+    confirm = getpass.getpass("Confirm cloud password: ").strip()
+    if password != confirm:
+        say("\nPasswords did not match.", "quick")
+        return
+
+    try:
+        cloud_saves.register(username, password)
+    except cloud_saves.CloudSaveError as exc:
+        say(f"\nCloud registration failed: {exc}", "quick")
+    else:
+        say(f"\nSigned in to cloud saves as {cloud_saves.current_username()}.", "quick")
+
+
+def _cloud_login():
+    username = ask("\nCloud username: ")
+    if not username:
+        say("\nNo username entered.", "quick")
+        return
+
+    password = getpass.getpass("Cloud password: ").strip()
+    try:
+        cloud_saves.login(username, password)
+    except cloud_saves.CloudSaveError as exc:
+        say(f"\nCloud sign-in failed: {exc}", "quick")
+    else:
+        say(f"\nSigned in to cloud saves as {cloud_saves.current_username()}.", "quick")
+
+
+def _cloud_upload_current(state):
+    if state is None:
+        say("\nStart or load a game before uploading a cloud save.", "quick")
+        return
+    if not cloud_saves.is_signed_in():
+        say("\nSign in before uploading cloud saves.", "quick")
+        return
+
+    typed_slot = ask("\nCloud save slot [autosave]: ")
+    slot_name = cloud_saves.normalize_slot_name(typed_slot or "autosave")
+    save_text = make_save_text(state)
+
+    try:
+        cloud_saves.upload_save(slot_name, save_text)
+    except cloud_saves.CloudSaveError as exc:
+        say(f"\nCloud upload failed: {exc}", "quick")
+    else:
+        say(f"\nUploaded cloud save slot '{slot_name}'.", "quick")
+
+
+def _cloud_load_interactive():
+    if not cloud_saves.is_signed_in():
+        say("\nSign in before loading cloud saves.", "quick")
+        return None
+
+    try:
+        cloud_slots = cloud_saves.list_saves()
+    except cloud_saves.CloudSaveError as exc:
+        say(f"\nCloud saves are unavailable: {exc}", "quick")
+        return None
+
+    options = []
+    for index, cloud_slot in enumerate(cloud_slots[:9], start=1):
+        slot_name = cloud_slot.get("slot_name", "")
+        if not slot_name:
+            continue
+        updated_at = cloud_slot.get("updated_at", "unknown time")
+        options.append(
+            MenuOption(
+                str(index),
+                slot_name,
+                slot_name,
+                f"updated {updated_at}",
+                aliases=(slot_name,),
+            )
+        )
+
+    if not options:
+        say("\nNo cloud saves found for this account.", "quick")
+        return None
+
+    options.append(
+        MenuOption(
+            str(len(options) + 1),
+            "Back",
+            "back",
+            aliases=("back", "cancel", "q", "quit"),
+        )
+    )
+
+    slot_name = choose_menu(
+        "Load Cloud Save",
+        options,
+        prompt="Cloud save choice: ",
+        subtitle="Downloaded cloud saves are also copied into saves/ for offline loading.",
+    )
+    if slot_name == "back":
+        return None
+
+    try:
+        response = cloud_saves.download_save(slot_name)
+        save_text = response["save_data"]
+        state = _load_state_from_text(save_text)
+    except (cloud_saves.CloudSaveError, SaveError) as exc:
+        say(f"\nCloud load failed: {exc}", "quick")
+        return None
+
+    local_path = default_save_path(f"cloud_{slot_name}")
+    try:
+        write_save_text(save_text, local_path)
+    except OSError as exc:
+        say(f"\nLoaded cloud save, but local copy failed: {exc}", "quick")
+    else:
+        say(f"\nDownloaded cloud save to {local_path}.", "quick")
+
+    say(f"\nLoaded cloud save slot '{slot_name}'.", "quick")
+    return state
+
+
+def _cloud_menu(current_state=None):
+    while True:
+        options = []
+        if cloud_saves.is_signed_in():
+            next_key = 1
+            if current_state is not None:
+                options.append(
+                    MenuOption(
+                        str(next_key),
+                        "Upload Current Save",
+                        "upload",
+                        aliases=("upload", "sync", "save"),
+                    )
+                )
+                next_key += 1
+            options.extend(
+                [
+                    MenuOption(
+                        str(next_key),
+                        "Load Cloud Save",
+                        "load",
+                        aliases=("load", "download"),
+                    ),
+                    MenuOption(
+                        str(next_key + 1),
+                        "Sign Out",
+                        "logout",
+                        aliases=("logout", "sign out"),
+                    ),
+                    MenuOption(
+                        str(next_key + 2),
+                        "Back",
+                        "back",
+                        aliases=("back", "cancel", "q", "quit"),
+                    ),
+                ]
+            )
+        else:
+            options.extend(
+                [
+                    MenuOption("1", "Create Account", "register", aliases=("register", "create")),
+                    MenuOption("2", "Sign In", "login", aliases=("login", "sign in")),
+                    MenuOption("3", "Back", "back", aliases=("back", "cancel", "q", "quit")),
+                ]
+            )
+
+        choice = choose_menu(
+            "Cloud Saves",
+            options,
+            prompt="Cloud choice: ",
+            subtitle=_cloud_status(),
+        )
+
+        if choice == "register":
+            _cloud_register()
+        elif choice == "login":
+            _cloud_login()
+        elif choice == "upload":
+            _cloud_upload_current(current_state)
+        elif choice == "load":
+            loaded_state = _cloud_load_interactive()
+            if loaded_state is not None:
+                return loaded_state
+        elif choice == "logout":
+            cloud_saves.sign_out()
+            say("\nSigned out of cloud saves on this device.", "quick")
+        elif choice == "back":
+            return None
+
+
+def _load_state_interactive():
+    while True:
+        save_files = list_save_files()
+        options = []
+        for index, path in enumerate(save_files[:9], start=1):
+            options.append(
+                MenuOption(
+                    str(index),
+                    path.name,
+                    str(path),
+                    _save_detail(path),
+                    aliases=(path.stem, path.name),
+                )
+            )
+
+        custom_key = str(len(options) + 1)
+        options.append(
+            MenuOption(
+                custom_key,
+                "Load other file",
+                "custom",
+                "type a .tasave path",
+                aliases=("custom", "other", "file", "path"),
+            )
+        )
+        options.append(
+            MenuOption(
+                str(len(options) + 1),
+                "Back",
+                "back",
+                aliases=("back", "cancel", "q", "quit"),
+            )
+        )
+
+        choice = choose_menu(
+            "Load Game",
+            options,
+            prompt="Load choice: ",
+            subtitle="Encrypted save files end in .tasave.",
+        )
+        if choice == "back":
+            return None
+        if choice == "custom":
+            typed_path = ask("\nSave file path: ")
+            if not typed_path:
+                say("\nNo file selected.", "quick")
+                continue
+            path = path_from_player_input(typed_path)
+        else:
+            path = Path(choice)
+
+        try:
+            state = _load_state_from_path(path)
+        except SaveError as exc:
+            say(f"\nLoad failed: {exc}", "quick")
+            continue
+
+        say(f"\nLoaded save from {path}.", "quick")
+        return state
+
+
+def _autosave_state(state):
+    save_text = make_save_text(state)
+    try:
+        write_save_text(save_text, default_save_path("autosave"))
+    except OSError:
+        return False, False
+
+    cloud_synced = False
+    if cloud_saves.is_signed_in():
+        try:
+            cloud_saves.upload_save("autosave", save_text, timeout=2)
+        except cloud_saves.CloudSaveError:
+            cloud_synced = False
+        else:
+            cloud_synced = True
+    return True, cloud_synced
+
+
+def _checkpoint_menu(state):
+    while True:
+        subtitle = f"Next: {_scene_title(state['next_scene'])} | Autosave: saves/autosave.tasave"
+        if cloud_saves.is_signed_in():
+            subtitle += f" | Cloud: {cloud_saves.current_username()}"
+        choice = choose_menu(
+            "Checkpoint",
+            [
+                MenuOption("1", "Continue", "continue", aliases=("continue", "c", "next")),
+                MenuOption("2", "Save Game", "save", aliases=("save", "s")),
+                MenuOption("3", "Load Game", "load", aliases=("load", "l")),
+                MenuOption("4", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
+                MenuOption("5", "Player Stats", "stats", aliases=("stats", "status")),
+                MenuOption("6", "Quit", "quit", aliases=("quit", "q", "exit")),
+            ],
+            prompt="Checkpoint choice: ",
+            subtitle=subtitle,
+        )
+
+        if choice == "continue":
+            return state
+        if choice == "save":
+            _save_state_interactive(state)
+        elif choice == "load":
+            loaded_state = _load_state_interactive()
+            if loaded_state is not None:
+                return loaded_state
+        elif choice == "cloud":
+            loaded_state = _cloud_menu(state)
+            if loaded_state is not None:
+                return loaded_state
+        elif choice == "stats":
+            print_stats(state["player"])
+        elif choice == "quit":
+            say("\nProgress is saved in saves/autosave.tasave if autosave succeeded.", "quick")
+            return None
+
+
+def _run_scene(scene_id, player, shop_stock):
+    if scene_id == "intro":
+        intro_scene(player)
+    elif scene_id == "wizard":
+        wizard_scene(player)
+        print_stats(player)
+    elif scene_id == "locked_door":
+        locked_door_scene(player)
+    elif scene_id == "first_goblin":
+        first_goblin_scene(player)
+    elif scene_id == "village":
+        village_scene(player, shop_stock)
+    elif scene_id == "forest":
+        forest_scene(player, shop_stock)
+    elif scene_id == "twin_doors":
+        twin_doors_scene(player)
+    elif scene_id == "witch":
+        witch_scene(player)
+    else:
+        raise SaveError("Unknown story checkpoint.")
+
+
+def _finish_game(player):
+    say("\nYou make it through the corridor alive. The road ahead is finally quiet.", "scene")
+    say(f"\nTHE END\nYou finished with {Fore.YELLOW}${player['money']}{Style.RESET_ALL}.", "none")
+
+
+def _run_story(state):
+    while True:
+        scene_id = state["next_scene"]
+        if scene_id == FINISHED_SCENE:
+            _finish_game(state["player"])
+            return
+
+        _run_scene(scene_id, state["player"], state["shop_stock"])
+
+        if scene_id == "wizard" and "Magic Wand" not in state["player"]["backpack"]:
+            say("\nWithout a magic wand, your adventure ends here. Better luck next time!", "scene")
+            return
+
+        state["next_scene"] = _next_scene(scene_id)
+        if state["next_scene"] == FINISHED_SCENE:
+            _finish_game(state["player"])
+            return
+
+        autosaved, cloud_synced = _autosave_state(state)
+        if autosaved:
+            message = "\nCheckpoint autosaved locally."
+            if cloud_synced:
+                message += " Cloud synced."
+            say(message, "quick")
+
+        state = _checkpoint_menu(state)
+        if state is None:
+            return
+
+
+def run_game(load_path=None):
+    """Create or load a player and play the text adventure."""
+    show_startup_logo()
+
+    if load_path is not None:
+        try:
+            state = _load_state_from_path(path_from_player_input(str(load_path)))
+        except SaveError as exc:
+            say(f"\nLoad failed: {exc}", "quick")
+            return
+        _run_story(state)
+        return
+
+    while True:
+        choice = choose_menu(
+            "Adventure Game",
+            [
+                MenuOption("1", "New Game", "new", aliases=("new", "start")),
+                MenuOption("2", "Load Game", "load", aliases=("load", "continue")),
+                MenuOption("3", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
+                MenuOption("4", "Quit", "quit", aliases=("quit", "q", "exit")),
+            ],
+            prompt="Main menu choice: ",
+        )
+
+        if choice == "new":
+            _run_story(_new_state())
+            return
+        if choice == "load":
+            state = _load_state_interactive()
+            if state is not None:
+                _run_story(state)
+                return
+        if choice == "cloud":
+            state = _cloud_menu()
+            if state is not None:
+                _run_story(state)
+                return
+        if choice == "quit":
+            return
+
+
+def intro_scene(player):
+    """The player finds the frog that starts the adventure."""
+    say("\nYou are out on a casual stroll when a magical chocolate frog hops around your feet.")
+
+    choice = yes_no("\nDo you pick it up? (yes/no): ")
+    if choice == "yes":
+        say("\nYou pick up the frog and store it in your backpack.")
+    else:
+        say("\nYou start to walk away. RIBBIT.")
+        say("The frog hops into your backpack anyway.", "beat")
+
+    player["backpack"].append("Magical Chocolate Frog")
+    print_stats(player)
+
+
+def wizard_scene(player):
+    """Trade the frog for the wand and door spell."""
+    say("\nYou bump into an old man with a long white beard.")
+    say('"Was that the croak of a chocolate frog?" he asks.', "beat")
+
+    choice = yes_no("\nWhat do you say? (yes/no): ")
+    if choice == "no":
+        say("\nHis old hearing must be failing him. He wanders off.")
+        return
+
+    say("\nHe smiles. \"I am Rumblerod The Great, the only remaining wizard in the North.\"")
+    trade = yes_no("\nTrade the frog for his spare magic wand? (yes/no): ")
+    if trade == "no":
+        say("\nRumblerod shrugs and continues down the path.")
+        return
+
+    player["backpack"].remove("Magical Chocolate Frog")
+    player["backpack"].append("Magic Wand")
+    add_spell(player, "Lockio Reducto")
+    say("\nYou receive a Magic Wand.")
+    say('Rumblerod says, "Lockio Reducto can unlock any door."', "beat")
+
+
+def locked_door_scene(player):
+    """First fork in the road and the locked door reward."""
+    say("\nYou continue your journey and come to a fork in the path.")
+    choice = choose_left_or_right("\nDo you go left or right? ")
+    if choice == "right":
+        say("\nYou notice a locked door on the left and decide not to miss it.")
+
+    amount = random.randint(20, 30)
+    choice = yes_no("\nYou find a locked door. Use the wand and say the words? (yes/no): ")
+    if choice == "no":
+        say("\nA goblin sneaks up behind you and stabs you.", "beat")
+        game_over(player)
+
+    player["money"] += amount
+    say(f"\nYou say Lockio Reducto. The door opens and you find ${amount}.", "beat")
+    print_stats(player)
+
+
+def first_goblin_scene(player):
+    """The first goblin is a simple physical fight before spell combat begins."""
+    say("\nYou turn to exit, but a goblin blocks your path.")
+    if fight_or_run() == "run":
+        say("\nThe goblin is faster than you.", "beat")
+        game_over(player)
+
+    attack = choose_menu(
+        "Quick Fight",
+        [
+            MenuOption("1", "Uppercut", "uppercut", aliases=("uppercut", "punch")),
+            MenuOption("2", "Kick", "kick", aliases=("kick",)),
+            MenuOption("3", "Dirt Throw", "dirt", aliases=("dirt", "throw dirt")),
+        ],
+        prompt="Move: ",
+    )
+
+    add_spell(player, "Fireball")
+    if attack == "dirt":
+        say("\nThe dirt blinds the goblin long enough for you to knock it out.")
+    else:
+        say(f"\nYour {attack} knocks out the goblin.")
+    say("It drops a page from a spell book.", "beat")
+    say("You learned Fireball.")
+    print_stats(player)
+
+
+def village_scene(player, shop_stock):
+    """Save the village, receive a potion, and visit Harold's shop."""
+    say("\nYou see a village nearby.")
+    say("A troll is attacking the villagers.", "beat")
+    if fight_or_run() == "run":
+        say("\nThe troll catches you before you can escape.", "beat")
+        game_over(player)
+    spell_fight("troll", player)
+
+    say('\nA villager says, "Thank you for saving our village."')
+    say('"Take this Big Health Potion. It will restore your health."', "beat")
+    player["backpack"].append("Big Health Potion")
+    print_stats(player)
+    offer_potions(player)
+
+    enter_store = yes_no("\nYou see Harold Sellsalot's General Store. Go inside? (yes/no): ")
+    if enter_store == "no":
+        say("\nA skeleton archer outside the village shoots you.", "beat")
+        game_over(player)
+
+    say("\nHarold welcomes you into the store.")
+    run_shop(player, shop_stock)
+
+    say("\nYou leave the store and encounter a skeleton.")
+    if fight_or_run() == "run":
+        say("\nThe skeleton catches you near the village gate.", "beat")
+        game_over(player)
+    spell_fight("skeleton", player)
+    offer_potions(player)
+
+
+def forest_scene(player, shop_stock):
+    """Forest fights and Miss Costalot's traveling shop."""
+    say("\nYou follow a forest trail.")
+    say("A werewolf howls at you from the trees.", "beat")
+    if fight_or_run() == "run":
+        say("\nThe werewolf catches you in the brush.", "beat")
+        game_over(player)
+    spell_fight("werewolf", player)
+    offer_potions(player)
+
+    say("\nFarther down the trail, a goblin jumps into the path.")
+    if fight_or_run() == "run":
+        say("\nThe goblin is faster than you.", "beat")
+        game_over(player)
+    spell_fight("goblin", player)
+    offer_potions(player)
+
+    say("\nAt the forest edge, Miss Costalot waves you over to her traveling cart.")
+    run_shop(player, shop_stock, advanced=True)
+
+
+def twin_doors_scene(player):
+    """Handle the left/right door branch and converge back to the main path."""
+    say("\nYou find two locked doors at the end of the road.")
+    door = choose_left_or_right("\nDo you use the wand on the left or the right door? ")
+    say("\nYou say Lockio Reducto and the door opens.", "beat")
+
+    if door == "left":
+        say("\nThe left door leads to a dead end guarded by an ogre.")
+        if fight_or_run() == "fight":
+            spell_fight("ogre", player)
+            offer_potions(player)
+            say("\nAfter defeating the ogre, you realize this path leads nowhere.")
+        else:
+            say("\nYou escape back to the corridor.")
+        say("The right door is now your only option.", "beat")
+
+    say("\nYou go through the right door and find a chest.")
+    say("Before you can open it, an ogre attacks.", "beat")
+    if fight_or_run() == "run":
+        say("\nYou slide between the ogre's legs and escape.")
+        return
+
+    spell_fight("ogre", player)
+    amount = random.randint(15, 25)
+    player["money"] += amount
+    say(f"\nYou find ${amount} in the chest.", "beat")
+    print_stats(player)
+    offer_potions(player)
+
+
+def witch_scene(player):
+    """Final current encounter."""
+    say("\nYou continue down the corridor.")
+    if fight_or_run("\nYou see a witch. Do you fight or run? ") == "run":
+        say("\nYou run into the ogre's dad, who is very angry with you.", "beat")
+        game_over(player)
+
+    spell_fight("witch", player)
+    offer_potions(player)

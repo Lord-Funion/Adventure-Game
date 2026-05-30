@@ -1,0 +1,69 @@
+Adventure Game
+==============
+
+```text
+    ___       __                 __
+   /   | ____/ /   _____  ____  / /___  __________
+  / /| |/ __  / | / / _ \/ __ \/ __/ / / / ___/ _ \
+ / ___ / /_/ /| |/ /  __/ / / / /_/ /_/ / /  /  __/
+/_/  |_\__,_/ |___/\___/_/ /_/\__/\__,_/_/   \___/
+          ______
+         / ____/___ _____ ___  ___
+        / / __/ __ `/ __ `__ \/ _ \
+       / /_/ / /_/ / / / / / /  __/
+       \____/\__,_/_/ /_/ /_/\___/
+```
+
+This project now has four versions:
+
+- `main.py` runs the reorganized text adventure.
+- `text_adventure/` contains the readable modular Python game code.
+- `legacy/` keeps a runnable copy of the older text game files.
+
+Run the text game:
+
+```bash
+python3 main.py
+```
+
+The game now creates encrypted checkpoint saves in `saves/`. Checkpoints appear
+between story scenes, and the main menu can load existing `.tasave` files.
+
+Load a save directly:
+
+```bash
+python3 main.py saves/autosave.tasave
+```
+
+Save files are encrypted and signed with a tamper check, so editing money,
+health, inventory, or spells in the file will make the save fail to load. This
+blocks normal save-file cheating. A fully cheat-proof game would need a trusted
+server because local game code can always be modified by the player.
+
+Cloud saves are optional. The game still writes local `.tasave` files first, and
+local loading still works when the web API is offline. Use **Cloud Saves** from
+the main menu or checkpoint menu to create an account, sign in, upload the
+current checkpoint, or download a cloud save. The game uses
+`https://lordfunion.dev/adventure-api` by default.
+
+GoDaddy API setup:
+
+1. Create the database and database user in cPanel.
+2. Give the database user **ALL PRIVILEGES** on the database.
+3. Open phpMyAdmin, select the database, and run `server/adventure-api/schema.sql`
+   once to create the tables.
+4. Copy `server/adventure-api/config.example.php` to `config.php` and fill in
+   the real cPanel database values.
+5. Upload `index.php` and `config.php` to `public_html/adventure-api/`.
+
+Optional pacing control:
+
+```bash
+TEXT_ADVENTURE_SPEED=fast python3 main.py
+TEXT_ADVENTURE_SPEED=instant python3 main.py
+```
+
+Run the preserved legacy version:
+
+```bash
+python3 legacy/main.py
