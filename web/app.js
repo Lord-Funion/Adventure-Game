@@ -203,6 +203,7 @@
     constructor(root, output) {
       this.root = root;
       this.output = output;
+      this.activePrompt = null;
     }
 
     scrollToBottom() {
@@ -215,6 +216,27 @@
       this.appendParts(line, parts);
       this.output.append(line);
       this.scrollToBottom();
+      return line;
+    }
+
+    appendClickableLine(parts, submitValue, disabled = false) {
+      const line = this.appendLine(parts);
+      if (disabled) {
+        line.classList.add("terminal-choice-disabled");
+        line.setAttribute("aria-disabled", "true");
+        return line;
+      }
+
+      line.classList.add("terminal-choice");
+      line.setAttribute("role", "button");
+      line.setAttribute("tabindex", "0");
+      line.addEventListener("click", () => this.submitActivePrompt(submitValue));
+      line.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          this.submitActivePrompt(submitValue);
+        }
+      });
       return line;
     }
 
@@ -262,10 +284,12 @@
         this.output.append(wrapper);
         this.scrollToBottom();
         input.focus();
+        this.activePrompt = { input, form };
 
         form.addEventListener("submit", (event) => {
           event.preventDefault();
           const raw = input.value;
+          this.activePrompt = null;
           const finalLine = document.createElement("div");
           finalLine.className = "terminal-line";
           finalLine.append(document.createTextNode(prompt));
@@ -275,6 +299,14 @@
           resolve(cleanInput(raw));
         });
       });
+    }
+
+    submitActivePrompt(value) {
+      if (!this.activePrompt) {
+        return;
+      }
+      this.activePrompt.input.value = value;
+      this.activePrompt.form.requestSubmit();
     }
   }
 
@@ -301,6 +333,10 @@
 
     sayParts(parts) {
       this.terminal.appendLine(parts);
+    }
+
+    sayClickableParts(parts, submitValue, disabled = false) {
+      this.terminal.appendClickableLine(parts, submitValue, disabled);
     }
 
     async ask(prompt, options = {}) {
@@ -421,11 +457,7 @@
           if (option.status) {
             parts.push(` (${option.status})`);
           }
-          if (option.enabled === false) {
-            this.sayParts([{ text: parts.map((part) => (typeof part === "string" ? part : part.text)).join(""), className: "dim" }]);
-          } else {
-            this.sayParts(parts);
-          }
+          this.sayClickableParts(parts, option.key, option.enabled === false);
         }
 
         const choice = normalizeChoice(await this.ask(prompt));

@@ -51,6 +51,32 @@ body {
   white-space: pre-wrap;
 }
 
+.terminal-choice {
+  width: fit-content;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.terminal-choice:hover,
+.terminal-choice:focus-visible {
+  background: #1a1a1a;
+  color: #ffffff;
+  outline: 0;
+}
+
+.terminal-choice:active {
+  background: #303030;
+}
+
+.terminal-choice-disabled {
+  color: var(--terminal-dim);
+  cursor: default;
+}
+
+.terminal-choice-disabled * {
+  color: var(--terminal-dim) !important;
+}
+
 .terminal-input-form {
   display: inline;
 }
