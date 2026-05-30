@@ -9,6 +9,24 @@ Branches included:
 - legacy
 
 
+Unreleased - Web-Port
+---------------------
+
+Summary:
+- Added clickable inline choices for short prompts such as yes/no, left/right, and fight/run.
+- Added a Game Over restart menu after player death.
+- Restart clears the browser terminal and starts a fresh game.
+- Main Menu and Quit remain available from the Game Over menu.
+- Kept typed input support for all prompts.
+- Documented the expanded click controls in README.md and README.html.
+
+Files changed:
+- README.html
+- README.md
+- web/app.js
+- web/styles.css
+
+
 2026-05-30 10:55:49 - c9ba9de - Make web port menu choices clickable
 --------------------------------------------------------------------
 Branch: Web-Port

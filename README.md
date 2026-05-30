@@ -32,8 +32,9 @@ Then open:
 http://127.0.0.1:4173/
 ```
 
-In the web version, numbered menu rows and combat spell rows can be clicked.
-Typing the number, command, or spell still works too.
+In the web version, numbered menu rows, yes/no choices, left/right choices,
+fight/run choices, and combat spell rows can be clicked. Typing the number,
+command, or spell still works too. If you die, a restart menu appears.
 
 To host it at `lordfunion.dev/adventure-game`, upload these from the
 `Web-Port` branch into `public_html/adventure-game/`:

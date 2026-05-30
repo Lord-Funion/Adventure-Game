@@ -81,6 +81,22 @@ body {
   display: inline;
 }
 
+.terminal-inline-choices {
+  color: var(--terminal-muted);
+}
+
+.terminal-inline-choice {
+  color: var(--terminal-yellow);
+  cursor: pointer;
+}
+
+.terminal-inline-choice:hover,
+.terminal-inline-choice:focus-visible {
+  background: #1a1a1a;
+  color: #ffffff;
+  outline: 0;
+}
+
 .terminal-input {
   width: min(42ch, calc(100vw - 48px));
   margin: 0;

@@ -260,6 +260,34 @@
       }
     }
 
+    appendPromptClickChoices(parent, choices) {
+      if (!choices || !choices.length) {
+        return;
+      }
+
+      const choicesWrap = document.createElement("span");
+      choicesWrap.className = "terminal-inline-choices";
+      for (const choice of choices) {
+        const button = document.createElement("span");
+        button.className = "terminal-inline-choice";
+        button.textContent = choice.label;
+        button.setAttribute("role", "button");
+        button.setAttribute("tabindex", "0");
+        button.addEventListener("click", () => this.submitActivePrompt(choice.value));
+        button.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            this.submitActivePrompt(choice.value);
+          }
+        });
+        choicesWrap.append(document.createTextNode(" ["));
+        choicesWrap.append(button);
+        choicesWrap.append(document.createTextNode("]"));
+      }
+      choicesWrap.append(document.createTextNode(" "));
+      parent.append(choicesWrap);
+    }
+
     ask(prompt, options = {}) {
       return new Promise((resolve) => {
         const wrapper = document.createElement("div");
@@ -268,6 +296,7 @@
         const promptSpan = document.createElement("span");
         promptSpan.textContent = prompt;
         wrapper.append(promptSpan);
+        this.appendPromptClickChoices(wrapper, options.clickChoices);
 
         const form = document.createElement("form");
         form.className = "terminal-input-form";
@@ -308,6 +337,12 @@
       this.activePrompt.input.value = value;
       this.activePrompt.form.requestSubmit();
     }
+
+    clear() {
+      this.output.replaceChildren();
+      this.activePrompt = null;
+      this.scrollToBottom();
+    }
   }
 
   class AdventureGame {
@@ -317,12 +352,36 @@
 
     async start() {
       this.terminal.appendLine([{ text: LOGO, className: "logo" }]);
-      try {
-        await this.mainMenu();
-      } catch (error) {
-        if (!(error instanceof GameOver)) {
-          this.say(`\nUnexpected web-port error: ${error.message || error}`, "quick");
-          throw error;
+      let mode = "menu";
+
+      while (true) {
+        try {
+          if (mode === "restart") {
+            await this.runStory(this.newState());
+          } else {
+            await this.mainMenu();
+          }
+          return;
+        } catch (error) {
+          if (!(error instanceof GameOver)) {
+            this.say(`\nUnexpected web-port error: ${error.message || error}`, "quick");
+            throw error;
+          }
+
+          const choice = await this.restartMenu();
+          if (choice === "restart") {
+            this.terminal.clear();
+            this.terminal.appendLine([{ text: LOGO, className: "logo" }]);
+            mode = "restart";
+            continue;
+          }
+          if (choice === "main") {
+            this.terminal.clear();
+            this.terminal.appendLine([{ text: LOGO, className: "logo" }]);
+            mode = "menu";
+            continue;
+          }
+          return;
         }
       }
     }
@@ -481,9 +540,13 @@
         value,
         new Set(aliases.map(normalizeChoice)),
       ]);
+      const clickChoices = Object.entries(choices).map(([value]) => ({
+        label: value,
+        value,
+      }));
 
       while (true) {
-        const choice = normalizeChoice(await this.ask(prompt));
+        const choice = normalizeChoice(await this.ask(prompt, { clickChoices }));
         for (const [value, aliases] of normalizedChoices) {
           if (aliases.has(choice)) {
             return value;
@@ -512,6 +575,16 @@
         left: ["left", "l", "1"],
         right: ["right", "r", "2"],
       }, "\nPlease choose left or right.");
+    }
+
+    restartMenu() {
+      return this.chooseMenu("Game Over", [
+        { key: "1", label: "Restart", value: "restart", aliases: ["restart", "r", "new game", "new"] },
+        { key: "2", label: "Main Menu", value: "main", aliases: ["main", "menu", "m"] },
+        { key: "3", label: "Quit", value: "quit", aliases: ["quit", "q", "exit"] },
+      ], {
+        prompt: "Game over choice: ",
+      });
     }
 
     normalizeState(rawState) {
