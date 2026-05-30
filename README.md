@@ -14,8 +14,7 @@ Legacy Text Game
        \____/\__,_/_/ /_/ /_/\___/
 ```
 
-This branch preserves the text adventure before it was reorganized into
-modules. The current modular game lives on the `main` branch.
+This branch preserves the text adventure before it had errors "fixed" by Codex. The current game lives on the `main` branch.
 
 Run the legacy version with:
 
