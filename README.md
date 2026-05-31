@@ -41,6 +41,7 @@ To host it at `lordfunion.dev/adventure-game`, upload these from the
 
 - `index.html`
 - `web/`
+- `assets/logo.png`
 
 The game now creates encrypted checkpoint saves in `saves/`. Checkpoints appear
 between story scenes, and the main menu can load existing `.tasave` files.

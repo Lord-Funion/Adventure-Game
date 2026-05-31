@@ -31,20 +31,6 @@
     [FINISHED_SCENE]: "Finished Game",
   };
 
-  const LOGO = [
-    "    ___       __                 __",
-    "   /   | ____/ /   _____  ____  / /___  __________",
-    "  / /| |/ __  / | / / _ \\/ __ \\/ __/ / / / ___/ _ \\",
-    " / ___ / /_/ /| |/ /  __/ / / / /_/ /_/ / /  /  __/",
-    "/_/  |_\\__,_/ |___/\\___/_/ /_/\\__/\\__,_/_/   \\___/",
-    "          ______",
-    "         / ____/___ _____ ___  ___",
-    "        / / __/ __ `/ __ `__ \\/ _ \\",
-    "       / /_/ / /_/ / / / / / /  __/",
-    "       \\____/\\__,_/_/ /_/ /_/\\___/",
-    "",
-  ].join("\n");
-
   const SPELLS = {
     Fireball: {
       damage: 10,
@@ -219,6 +205,23 @@
       return line;
     }
 
+    appendLogo() {
+      const wrapper = document.createElement("div");
+      wrapper.className = "terminal-logo";
+
+      const image = document.createElement("img");
+      image.src = "assets/logo.png";
+      image.alt = "Adventure Game";
+      image.width = 1254;
+      image.height = 1254;
+      image.decoding = "async";
+
+      wrapper.append(image);
+      this.output.append(wrapper);
+      this.scrollToBottom();
+      return wrapper;
+    }
+
     appendClickableLine(parts, submitValue, disabled = false) {
       const line = this.appendLine(parts);
       if (disabled) {
@@ -351,7 +354,7 @@
     }
 
     async start() {
-      this.terminal.appendLine([{ text: LOGO, className: "logo" }]);
+      this.terminal.appendLogo();
       let mode = "menu";
 
       while (true) {
@@ -371,13 +374,13 @@
           const choice = await this.restartMenu();
           if (choice === "restart") {
             this.terminal.clear();
-            this.terminal.appendLine([{ text: LOGO, className: "logo" }]);
+            this.terminal.appendLogo();
             mode = "restart";
             continue;
           }
           if (choice === "main") {
             this.terminal.clear();
-            this.terminal.appendLine([{ text: LOGO, className: "logo" }]);
+            this.terminal.appendLogo();
             mode = "menu";
             continue;
           }

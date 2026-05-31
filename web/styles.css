@@ -115,8 +115,15 @@ body {
   color: #050505;
 }
 
-.logo {
-  color: var(--terminal-yellow);
+.terminal-logo {
+  width: min(260px, 64vw);
+  margin: 0 0 14px;
+}
+
+.terminal-logo img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .red {
@@ -154,5 +161,9 @@ body {
 
   .terminal {
     padding: 14px 12px 28px;
+  }
+
+  .terminal-logo {
+    width: min(190px, 58vw);
   }
 }
