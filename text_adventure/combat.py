@@ -11,10 +11,28 @@ from .ui import MenuOption, choose_menu, stat_meter
 
 BASIC_DAMAGE = 5
 STATUS_DAMAGE = 3
+REVIVE_ITEM = "Phoenix Feather"
 
 
 class GameOver(Exception):
     """Raised when the player dies so the story runner can show restart options."""
+
+
+def _basic_damage(player):
+    return BASIC_DAMAGE + player.get("weaponDamage", 0)
+
+
+def _try_combat_revive(player):
+    if REVIVE_ITEM not in player["backpack"]:
+        return False
+    player["backpack"].remove(REVIVE_ITEM)
+    player["health"] = max(1, player["healthMax"] // 2)
+    say(
+        f"\nThe {REVIVE_ITEM} bursts into warm sparks and pulls you back to "
+        f"{player['health']}/{player['healthMax']} health!",
+        "beat",
+    )
+    return True
 
 
 def _monster_attack(monster_name, monster, player):
@@ -59,6 +77,7 @@ def _spell_detail(player, spell):
 
 def _choose_combat_action(monster_name, monster_health, monster_max_health, player):
     """Show the combat menu and return either 'basic' or a spell name."""
+    basic_damage = _basic_damage(player)
     subtitle = (
         f"You: {Fore.RED}{stat_meter(player['health'], player['healthMax'])} "
         f"{player['health']}/{player['healthMax']}{Style.RESET_ALL} | "
@@ -71,7 +90,7 @@ def _choose_combat_action(monster_name, monster_health, monster_max_health, play
             "1",
             "Basic Attack",
             "basic",
-            f"free, {BASIC_DAMAGE} damage",
+            f"free, {basic_damage} damage",
             aliases=("basic", "attack", "hit", "punch"),
         )
     ]
@@ -134,7 +153,7 @@ def spell_fight(monster_name, player):
                 f"The poison burns you for {STATUS_DAMAGE} damage. "
                 f"Health: {player['health']}/{player['healthMax']}"
             )
-            if player["health"] <= 0:
+            if player["health"] <= 0 and not _try_combat_revive(player):
                 game_over(player)
 
         if burn_turns > 0:
@@ -152,8 +171,9 @@ def spell_fight(monster_name, player):
         action = _choose_combat_action(monster_name, monster_health, monster_max_health, player)
 
         if action == "basic":
-            monster_health -= BASIC_DAMAGE
-            say(f"You strike for {BASIC_DAMAGE} damage.", "quick")
+            basic_damage = _basic_damage(player)
+            monster_health -= basic_damage
+            say(f"You strike for {basic_damage} damage.", "quick")
         else:
             spell_name = action
             spell = SPELLS[spell_name]
@@ -193,7 +213,7 @@ def spell_fight(monster_name, player):
         else:
             poison_ticks = max(poison_ticks, _monster_attack(monster_name, monster, player))
 
-        if player["health"] <= 0:
+        if player["health"] <= 0 and not _try_combat_revive(player):
             game_over(player)
 
         say(
@@ -207,11 +227,12 @@ def spell_fight(monster_name, player):
 def win_fight(monster_name, player):
     """Give the player rewards and reset mana after a victory."""
     say(f"The {monster_name} has been defeated!", "beat")
-    player["money"] += 10
+    reward = MONSTERS[monster_name].get("reward", 10)
+    player["money"] += reward
     drop = random.choice(LOOT_DROPS)
     player["backpack"].append(drop)
     player["mana"] = player["manaMax"]
-    say(f"You gained ${10} and found a {drop}.")
+    say(f"You gained ${reward} and found a {drop}.")
     print_stats(player)
 
 

@@ -34,6 +34,22 @@ def _buy_item(player, item_name, price):
     say(f"You have ${player['money']} left.", "quick")
 
 
+def _buy_stocked_item(player, stock, item_name, price):
+    """Buy a one-time stocked item."""
+    if not stock.get(item_name, True):
+        say("\nThat item is out of stock.", "quick")
+        return
+    if player["money"] < price:
+        say("\nYou don't have enough money.", "quick")
+        return
+
+    player["money"] -= price
+    player["backpack"].append(item_name)
+    stock[item_name] = False
+    say(f"\nYou bought a {item_name}.")
+    say(f"You have ${player['money']} left.", "quick")
+
+
 def _buy_mana(player):
     """Let the player permanently increase maximum mana."""
     while True:
@@ -95,7 +111,7 @@ def _buy_equipment(player, stock, item_name, price, stat_name, amount):
     say(f"You have ${player['money']} left.", "quick")
 
 
-def run_shop(player, stock, advanced=False):
+def run_shop(player, stock, advanced=False, legendary=False):
     """Run Harold's or Miss Costalot's shop menu."""
     sell_scraps(player)
 
@@ -201,12 +217,124 @@ def run_shop(player, stock, advanced=False):
                     ),
                     MenuOption(
                         "9",
-                        "Leave store",
-                        "leave",
-                        aliases=("leave", "exit", "back", "q"),
+                        "Frost Nova",
+                        "frost_nova",
+                        f"{money_text(35)} - {SPELLS['Frost Nova']['description']}",
+                        aliases=("frost", "frost nova", "spell 9"),
+                        enabled=stock.get("Frost Nova", True),
+                        status=_price_status(
+                            player,
+                            35,
+                            not stock.get("Frost Nova", True),
+                            "learned",
+                        ),
+                    ),
+                    MenuOption(
+                        "10",
+                        "Crystal Sword",
+                        "crystal_sword",
+                        f"{money_text(45)} - +7 basic attack damage",
+                        aliases=("sword", "crystal sword", "weapon"),
+                        enabled=stock.get("Crystal Sword", True),
+                        status=_price_status(
+                            player,
+                            45,
+                            not stock.get("Crystal Sword", True),
+                            "owned",
+                        ),
+                    ),
+                    MenuOption(
+                        "11",
+                        "Phoenix Feather",
+                        "phoenix_feather",
+                        f"{money_text(55)} - revives you once in combat",
+                        aliases=("phoenix", "feather", "revive"),
+                        enabled=stock.get("Phoenix Feather", True),
+                        status=_price_status(
+                            player,
+                            55,
+                            not stock.get("Phoenix Feather", True),
+                            "owned",
+                        ),
                     ),
                 ]
             )
+            if legendary:
+                options.extend(
+                    [
+                        MenuOption(
+                            "12",
+                            "Solar Beam",
+                            "solar_beam",
+                            f"{money_text(60)} - {SPELLS['Solar Beam']['description']}",
+                            aliases=("solar", "solar beam", "spell 12"),
+                            enabled=stock.get("Solar Beam", True),
+                            status=_price_status(
+                                player,
+                                60,
+                                not stock.get("Solar Beam", True),
+                                "learned",
+                            ),
+                        ),
+                        MenuOption(
+                            "13",
+                            "Life Bloom",
+                            "life_bloom",
+                            f"{money_text(45)} - {SPELLS['Life Bloom']['description']}",
+                            aliases=("life", "life bloom", "heal spell"),
+                            enabled=stock.get("Life Bloom", True),
+                            status=_price_status(
+                                player,
+                                45,
+                                not stock.get("Life Bloom", True),
+                                "learned",
+                            ),
+                        ),
+                        MenuOption(
+                            "14",
+                            "Dragon Scale Shield",
+                            "dragon_shield",
+                            f"{money_text(70)} - +8 armor",
+                            aliases=("shield", "dragon shield", "dragon scale"),
+                            enabled=stock.get("Dragon Scale Shield", True),
+                            status=_price_status(
+                                player,
+                                70,
+                                not stock.get("Dragon Scale Shield", True),
+                                "owned",
+                            ),
+                        ),
+                        MenuOption(
+                            "15",
+                            "Star Cloak",
+                            "star_cloak",
+                            f"{money_text(65)} - +5 spell damage",
+                            aliases=("cloak", "star cloak"),
+                            enabled=stock.get("Star Cloak", True),
+                            status=_price_status(
+                                player,
+                                65,
+                                not stock.get("Star Cloak", True),
+                                "owned",
+                            ),
+                        ),
+                        MenuOption(
+                            "16",
+                            "Leave store",
+                            "leave",
+                            aliases=("leave", "exit", "back", "q"),
+                        ),
+                    ]
+                )
+            else:
+                options.append(
+                    MenuOption(
+                        "12",
+                        "Leave store",
+                        "leave",
+                        aliases=("leave", "exit", "back", "q"),
+                    )
+                )
         else:
             options.append(
                 MenuOption(
@@ -242,6 +370,20 @@ def run_shop(player, stock, advanced=False):
             _buy_equipment(player, stock, "Glorious Helmet", 50, "armor", 5)
         elif choice == "boots":
             _buy_equipment(player, stock, "Mage Boots", 35, "extraDamage", 3)
+        elif choice == "frost_nova":
+            _buy_spell(player, stock, "Frost Nova", 35)
+        elif choice == "crystal_sword":
+            _buy_equipment(player, stock, "Crystal Sword", 45, "weaponDamage", 7)
+        elif choice == "phoenix_feather":
+            _buy_stocked_item(player, stock, "Phoenix Feather", 55)
+        elif choice == "solar_beam":
+            _buy_spell(player, stock, "Solar Beam", 60)
+        elif choice == "life_bloom":
+            _buy_spell(player, stock, "Life Bloom", 45)
+        elif choice == "dragon_shield":
+            _buy_equipment(player, stock, "Dragon Scale Shield", 70, "armor", 8)
+        elif choice == "star_cloak":
+            _buy_equipment(player, stock, "Star Cloak", 65, "extraDamage", 5)
         elif choice == "leave":
             say("\nYou leave the store.", "quick")
             print_stats(player)

@@ -28,6 +28,23 @@ SPELLS = {
         "manaCost": 7,
         "description": "Heals 10 health in battle.",
     },
+    "Frost Nova": {
+        "damage": 12,
+        "manaCost": 12,
+        "effects": {"stun": 1},
+        "description": "Deals 12 damage and chills an enemy still for 1 turn.",
+    },
+    "Solar Beam": {
+        "damage": 30,
+        "manaCost": 25,
+        "effects": {"burn": 2},
+        "description": "Deals 30 damage and leaves a bright burn.",
+    },
+    "Life Bloom": {
+        "healing": 25,
+        "manaCost": 15,
+        "description": "Heals 25 health in battle.",
+    },
     "Lockio Reducto": {
         "description": "Unlocks sealed doors.",
     },
@@ -68,7 +85,32 @@ MONSTERS = {
     "vampire": {
         "health": 45,
         "damage": 17,
+        "reward": 20,
         "attacks": ["transform into bat", "fangs", "suck blood"],
+    },
+    "ice goblin": {
+        "health": 35,
+        "damage": 14,
+        "reward": 15,
+        "attacks": ["snowball uppercut", "cold toes", "icicle bonk"],
+    },
+    "shadow knight": {
+        "health": 60,
+        "damage": 20,
+        "reward": 25,
+        "attacks": ["gloom blade", "helmet glare", "dramatic cape slap"],
+    },
+    "crystal dragon": {
+        "health": 80,
+        "damage": 24,
+        "reward": 35,
+        "attacks": ["sparkle breath", "tail sweep", "gemstone sneeze"],
+    },
+    "lord dreadbiscuit": {
+        "health": 95,
+        "damage": 26,
+        "reward": 50,
+        "attacks": ["cookie crumble", "royal tantrum", "butter curse"],
     },
 }
 
@@ -82,6 +124,9 @@ LOOT_DROPS = [
     "Mystery Goop",
     "Strange Liquid",
     "Gnarled Toenail",
+    "Moon Cheese",
+    "Dragon Scale Chip",
+    "Haunted Button",
 ]
 
 
@@ -93,4 +138,7 @@ SELLABLE_LOOT = {
     "Mystery Goop",
     "Strange Liquid",
     "Gnarled Toenail",
+    "Moon Cheese",
+    "Dragon Scale Chip",
+    "Haunted Button",
 }

@@ -18,6 +18,11 @@
     "forest",
     "twin_doors",
     "witch",
+    "mountain_pass",
+    "moonlit_market",
+    "vampire_castle",
+    "dragon_gate",
+    "final_battle",
   ];
   const SCENE_TITLES = {
     intro: "Chocolate Frog",
@@ -28,6 +33,11 @@
     forest: "Forest Trail",
     twin_doors: "Twin Doors",
     witch: "Witch",
+    mountain_pass: "Mountain Pass",
+    moonlit_market: "Moonlit Market",
+    vampire_castle: "Vampire Castle",
+    dragon_gate: "Dragon Gate",
+    final_battle: "Final Battle",
     [FINISHED_SCENE]: "Finished Game",
   };
 
@@ -53,6 +63,23 @@
       healing: 10,
       manaCost: 7,
       description: "Heals 10 health in battle.",
+    },
+    "Frost Nova": {
+      damage: 12,
+      manaCost: 12,
+      effects: { stun: 1 },
+      description: "Deals 12 damage and chills an enemy still for 1 turn.",
+    },
+    "Solar Beam": {
+      damage: 30,
+      manaCost: 25,
+      effects: { burn: 2 },
+      description: "Deals 30 damage and leaves a bright burn.",
+    },
+    "Life Bloom": {
+      healing: 25,
+      manaCost: 15,
+      description: "Heals 25 health in battle.",
     },
     "Lockio Reducto": {
       description: "Unlocks sealed doors.",
@@ -93,7 +120,32 @@
     vampire: {
       health: 45,
       damage: 17,
+      reward: 20,
       attacks: ["transform into bat", "fangs", "suck blood"],
+    },
+    "ice goblin": {
+      health: 35,
+      damage: 14,
+      reward: 15,
+      attacks: ["snowball uppercut", "cold toes", "icicle bonk"],
+    },
+    "shadow knight": {
+      health: 60,
+      damage: 20,
+      reward: 25,
+      attacks: ["gloom blade", "helmet glare", "dramatic cape slap"],
+    },
+    "crystal dragon": {
+      health: 80,
+      damage: 24,
+      reward: 35,
+      attacks: ["sparkle breath", "tail sweep", "gemstone sneeze"],
+    },
+    "lord dreadbiscuit": {
+      health: 95,
+      damage: 26,
+      reward: 50,
+      attacks: ["cookie crumble", "royal tantrum", "butter curse"],
     },
   };
 
@@ -106,6 +158,9 @@
     "Mystery Goop",
     "Strange Liquid",
     "Gnarled Toenail",
+    "Moon Cheese",
+    "Dragon Scale Chip",
+    "Haunted Button",
   ];
 
   const SELLABLE_LOOT = new Set([
@@ -116,6 +171,9 @@
     "Mystery Goop",
     "Strange Liquid",
     "Gnarled Toenail",
+    "Moon Cheese",
+    "Dragon Scale Chip",
+    "Haunted Button",
   ]);
 
   class GameOver extends Error {}
@@ -425,6 +483,7 @@
         mana: 50,
         manaMax: 50,
         armor: 0,
+        weaponDamage: 0,
         extraDamage: 0,
         backpack: [],
         spells: [],
@@ -442,8 +501,15 @@
         "Arcane Blast": true,
         Thunderstorm: true,
         "Restoration Incantation": true,
+        "Frost Nova": true,
+        "Solar Beam": true,
+        "Life Bloom": true,
         "Glorious Helmet": true,
         "Mage Boots": true,
+        "Crystal Sword": true,
+        "Phoenix Feather": true,
+        "Dragon Scale Shield": true,
+        "Star Cloak": true,
       };
     }
 
@@ -476,6 +542,7 @@
         { text: `${statMeter(player.mana, player.manaMax)} ${player.mana}/${player.manaMax}`, className: "blue" },
       ]);
       this.sayParts(["Armor: ", { text: String(player.armor), className: "cyan" }]);
+      this.sayParts(["Weapon Damage: ", { text: `+${player.weaponDamage || 0}`, className: "yellow" }]);
       this.sayParts(["Spell Damage: ", { text: `+${player.extraDamage}`, className: "magenta" }]);
 
       const spells = player.spells.length ? player.spells.join(", ") : "None";
@@ -603,7 +670,7 @@
       }
 
       const player = this.createPlayer();
-      for (const key of ["money", "health", "healthMax", "mana", "manaMax", "armor", "extraDamage"]) {
+      for (const key of ["money", "health", "healthMax", "mana", "manaMax", "armor", "weaponDamage", "extraDamage"]) {
         const value = rawPlayer[key] ?? player[key];
         if (!Number.isInteger(value)) {
           throw new Error(`Save field '${key}' is not a valid number.`);
@@ -1286,14 +1353,25 @@
         await this.twinDoorsScene(player);
       } else if (sceneId === "witch") {
         await this.witchScene(player);
+      } else if (sceneId === "mountain_pass") {
+        await this.mountainPassScene(player);
+      } else if (sceneId === "moonlit_market") {
+        await this.moonlitMarketScene(player, shopStock);
+      } else if (sceneId === "vampire_castle") {
+        await this.vampireCastleScene(player);
+      } else if (sceneId === "dragon_gate") {
+        await this.dragonGateScene(player, shopStock);
+      } else if (sceneId === "final_battle") {
+        await this.finalBattleScene(player);
       } else {
         throw new Error("Unknown story checkpoint.");
       }
     }
 
     finishGame(player) {
-      this.say("\nYou make it through the corridor alive. The road ahead is finally quiet.");
-      this.say("\nAdventure Game is still currently being developed by Thunderstruck7 and Lord Funion. Check back later for more.");
+      this.say("\nLord Dreadbiscuit's castle crumbles into a suspiciously buttery pile of crumbs.");
+      this.say("\nYou beat Adventure Game and saved the realm. The villages are safe, and even Rumblerod admits you did most of the work.");
+      this.say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.");
       this.sayParts(["\nTHE END\nYou finished with ", ...this.moneyParts(player.money), "."]);
     }
 
@@ -1480,6 +1558,90 @@
       await this.offerPotions(player);
     }
 
+    async mountainPassScene(player) {
+      this.say("\nPast the witch's corridor, the road climbs into a mountain pass.");
+      this.say("A sign reads: FINAL CASTLE THIS WAY. Under it, someone wrote: probably.");
+      if (await this.fightOrRun("\nAn ice goblin rolls down the hill at you. Do you fight or run? ") === "run") {
+        this.say("\nYou try to run downhill, which works until the hill runs out.");
+        this.gameOver(player);
+      }
+
+      await this.spellFight("ice goblin", player);
+      const reward = randomInt(35, 50);
+      player.money += reward;
+      player.backpack.push("Moon Cheese");
+      this.say(`\nThe ice goblin's lunchbox pops open. You find $${reward} and some Moon Cheese.`);
+      this.printStats(player);
+      await this.offerPotions(player);
+    }
+
+    async moonlitMarketScene(player, shopStock) {
+      this.say("\nAt the top of the pass, paper lanterns glow over the Moonlit Market.");
+      this.say('A merchant named Madam Probably says, "Everything here is almost safe."');
+      await this.runShop(player, shopStock, true);
+
+      this.say("\nBehind the last stall, a shadow knight blocks the castle road.");
+      if (await this.fightOrRun() === "run") {
+        this.say("\nThe knight sighs, walks faster than you, and bonks you with the flat of a gloomy sword.");
+        this.gameOver(player);
+      }
+      await this.spellFight("shadow knight", player);
+      player.money += 30;
+      this.say("\nThe shadow knight drops $30 and a note that says: please stop Lord Dreadbiscuit.");
+      this.printStats(player);
+      await this.offerPotions(player);
+    }
+
+    async vampireCastleScene(player) {
+      this.say("\nYou reach a castle shaped like a fancy tooth.");
+      this.say("Inside, a vampire is practicing scary faces in a mirror that refuses to help.");
+      if (await this.fightOrRun("\nThe vampire notices you. Do you fight or run? ") === "run") {
+        this.say("\nYou run into a closet full of capes. The capes win.");
+        this.gameOver(player);
+      }
+
+      await this.spellFight("vampire", player);
+      player.backpack.push("Silver Key of Mild Concern");
+      player.money += 40;
+      this.say("\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus $40.");
+      this.printStats(player);
+      await this.offerPotions(player);
+    }
+
+    async dragonGateScene(player, shopStock) {
+      this.say("\nThe Silver Key fits a gate made of old dragon scales.");
+      this.say("Next to it, two blacksmiths argue over whether anvils count as musical instruments.");
+      this.say("They call their shop The Dragon Forge and offer one last chance to gear up.");
+      await this.runShop(player, shopStock, true, true);
+
+      this.say("\nWhen you unlock the gate, a crystal dragon wakes up and sneezes rainbows everywhere.");
+      if (await this.fightOrRun("\nDo you fight the crystal dragon or run? ") === "run") {
+        this.say("\nYou run. The dragon thinks this is fetch.");
+        this.gameOver(player);
+      }
+
+      await this.spellFight("crystal dragon", player);
+      player.backpack.push("Dragon Scale Chip");
+      player.money += 60;
+      this.say("\nThe dragon bows, gives you a Dragon Scale Chip, and pushes $60 into your hands.");
+      this.printStats(player);
+      await this.offerPotions(player);
+    }
+
+    async finalBattleScene(player) {
+      this.say("\nBeyond the gate stands Lord Dreadbiscuit, wearing a crown far too small for his ego.");
+      this.say('"At last," he says, "someone has come to challenge my mildly inconvenient darkness."');
+      if (await this.fightOrRun("\nDo you fight Lord Dreadbiscuit or run? ") === "run") {
+        this.say("\nYou turn around and step on a cursed cookie crumb.");
+        this.gameOver(player);
+      }
+
+      await this.spellFight("lord dreadbiscuit", player);
+      this.say("\nLord Dreadbiscuit wobbles, crumbles, and apologizes to everyone he has inconvenienced.");
+      this.say("Rumblerod appears from behind a curtain and insists he was helping invisibly the whole time.");
+      this.printStats(player);
+    }
+
     sellScraps(player) {
       let soldAnything = false;
       for (const item of [...player.backpack]) {
@@ -1588,7 +1750,23 @@
       return parts.join(", ");
     }
 
+    basicDamage(player) {
+      return BASIC_DAMAGE + (player.weaponDamage || 0);
+    }
+
+    tryCombatRevive(player) {
+      const featherIndex = player.backpack.indexOf("Phoenix Feather");
+      if (featherIndex < 0) {
+        return false;
+      }
+      player.backpack.splice(featherIndex, 1);
+      player.health = Math.max(1, Math.floor(player.healthMax / 2));
+      this.say(`\nThe Phoenix Feather bursts into warm sparks and pulls you back to ${player.health}/${player.healthMax} health!`);
+      return true;
+    }
+
     async chooseCombatAction(monsterName, monsterHealth, monsterMaxHealth, player) {
+      const basicDamage = this.basicDamage(player);
       const subtitle = [
         "You: ",
         { text: statMeter(player.health, player.healthMax), className: "red" },
@@ -1602,7 +1780,7 @@
         key: "1",
         label: "Basic Attack",
         value: "basic",
-        detail: `free, ${BASIC_DAMAGE} damage`,
+        detail: `free, ${basicDamage} damage`,
         aliases: ["basic", "attack", "hit", "punch"],
       }];
 
@@ -1680,7 +1858,7 @@
           player.health -= STATUS_DAMAGE;
           poisonTicks -= 1;
           this.say(`The poison burns you for ${STATUS_DAMAGE} damage. Health: ${player.health}/${player.healthMax}`);
-          if (player.health <= 0) {
+          if (player.health <= 0 && !this.tryCombatRevive(player)) {
             this.gameOver(player);
           }
         }
@@ -1698,8 +1876,9 @@
         const action = await this.chooseCombatAction(monsterName, monsterHealth, monsterMaxHealth, player);
 
         if (action === "basic") {
-          monsterHealth -= BASIC_DAMAGE;
-          this.say(`You strike for ${BASIC_DAMAGE} damage.`);
+          const basicDamage = this.basicDamage(player);
+          monsterHealth -= basicDamage;
+          this.say(`You strike for ${basicDamage} damage.`);
         } else {
           const spellName = action;
           const spell = SPELLS[spellName];
@@ -1742,7 +1921,7 @@
           poisonTicks = Math.max(poisonTicks, this.monsterAttack(monsterName, monster, player));
         }
 
-        if (player.health <= 0) {
+        if (player.health <= 0 && !this.tryCombatRevive(player)) {
           this.gameOver(player);
         }
 
@@ -1756,11 +1935,12 @@
 
     winFight(monsterName, player) {
       this.say(`The ${monsterName} has been defeated!`);
-      player.money += 10;
+      const reward = MONSTERS[monsterName].reward || 10;
+      player.money += reward;
       const drop = randomChoice(LOOT_DROPS);
       player.backpack.push(drop);
       player.mana = player.manaMax;
-      this.say(`You gained $10 and found a ${drop}.`);
+      this.say(`You gained $${reward} and found a ${drop}.`);
       this.printStats(player);
     }
 
@@ -1795,6 +1975,23 @@
 
       player.money -= price;
       player.backpack.push(itemName);
+      this.say(`\nYou bought a ${itemName}.`);
+      this.say(`You have $${player.money} left.`);
+    }
+
+    buyStockedItem(player, stock, itemName, price) {
+      if (!stock[itemName]) {
+        this.say("\nThat item is out of stock.");
+        return;
+      }
+      if (player.money < price) {
+        this.say("\nYou don't have enough money.");
+        return;
+      }
+
+      player.money -= price;
+      player.backpack.push(itemName);
+      stock[itemName] = false;
       this.say(`\nYou bought a ${itemName}.`);
       this.say(`You have $${player.money} left.`);
     }
@@ -1866,7 +2063,7 @@
       this.say(`You have $${player.money} left.`);
     }
 
-    async runShop(player, stock, advanced = false) {
+    async runShop(player, stock, advanced = false, legendary = false) {
       this.sellScraps(player);
 
       while (true) {
@@ -1946,11 +2143,85 @@
             },
             {
               key: "9",
+              label: "Frost Nova",
+              value: "frost_nova",
+              detail: [...this.moneyParts(35), ` - ${SPELLS["Frost Nova"].description}`],
+              aliases: ["frost", "frost nova", "spell 9"],
+              enabled: stock["Frost Nova"],
+              status: this.priceStatus(player, 35, !stock["Frost Nova"], "learned"),
+            },
+            {
+              key: "10",
+              label: "Crystal Sword",
+              value: "crystal_sword",
+              detail: [...this.moneyParts(45), " - +7 basic attack damage"],
+              aliases: ["sword", "crystal sword", "weapon"],
+              enabled: stock["Crystal Sword"],
+              status: this.priceStatus(player, 45, !stock["Crystal Sword"], "owned"),
+            },
+            {
+              key: "11",
+              label: "Phoenix Feather",
+              value: "phoenix_feather",
+              detail: [...this.moneyParts(55), " - revives you once in combat"],
+              aliases: ["phoenix", "feather", "revive"],
+              enabled: stock["Phoenix Feather"],
+              status: this.priceStatus(player, 55, !stock["Phoenix Feather"], "owned"),
+            },
+          );
+          if (legendary) {
+            options.push(
+              {
+                key: "12",
+                label: "Solar Beam",
+                value: "solar_beam",
+                detail: [...this.moneyParts(60), ` - ${SPELLS["Solar Beam"].description}`],
+                aliases: ["solar", "solar beam", "spell 12"],
+                enabled: stock["Solar Beam"],
+                status: this.priceStatus(player, 60, !stock["Solar Beam"], "learned"),
+              },
+              {
+                key: "13",
+                label: "Life Bloom",
+                value: "life_bloom",
+                detail: [...this.moneyParts(45), ` - ${SPELLS["Life Bloom"].description}`],
+                aliases: ["life", "life bloom", "heal spell"],
+                enabled: stock["Life Bloom"],
+                status: this.priceStatus(player, 45, !stock["Life Bloom"], "learned"),
+              },
+              {
+                key: "14",
+                label: "Dragon Scale Shield",
+                value: "dragon_shield",
+                detail: [...this.moneyParts(70), " - +8 armor"],
+                aliases: ["shield", "dragon shield", "dragon scale"],
+                enabled: stock["Dragon Scale Shield"],
+                status: this.priceStatus(player, 70, !stock["Dragon Scale Shield"], "owned"),
+              },
+              {
+                key: "15",
+                label: "Star Cloak",
+                value: "star_cloak",
+                detail: [...this.moneyParts(65), " - +5 spell damage"],
+                aliases: ["cloak", "star cloak"],
+                enabled: stock["Star Cloak"],
+                status: this.priceStatus(player, 65, !stock["Star Cloak"], "owned"),
+              },
+              {
+                key: "16",
+                label: "Leave store",
+                value: "leave",
+                aliases: ["leave", "exit", "back", "q"],
+              },
+            );
+          } else {
+            options.push({
+              key: "12",
               label: "Leave store",
               value: "leave",
               aliases: ["leave", "exit", "back", "q"],
-            },
-          );
+            });
+          }
         } else {
           options.push({
             key: "6",
@@ -1987,6 +2258,20 @@
           this.buyEquipment(player, stock, "Glorious Helmet", 50, "armor", 5);
         } else if (choice === "boots") {
           this.buyEquipment(player, stock, "Mage Boots", 35, "extraDamage", 3);
+        } else if (choice === "frost_nova") {
+          this.buySpell(player, stock, "Frost Nova", 35);
+        } else if (choice === "crystal_sword") {
+          this.buyEquipment(player, stock, "Crystal Sword", 45, "weaponDamage", 7);
+        } else if (choice === "phoenix_feather") {
+          this.buyStockedItem(player, stock, "Phoenix Feather", 55);
+        } else if (choice === "solar_beam") {
+          this.buySpell(player, stock, "Solar Beam", 60);
+        } else if (choice === "life_bloom") {
+          this.buySpell(player, stock, "Life Bloom", 45);
+        } else if (choice === "dragon_shield") {
+          this.buyEquipment(player, stock, "Dragon Scale Shield", 70, "armor", 8);
+        } else if (choice === "star_cloak") {
+          this.buyEquipment(player, stock, "Star Cloak", 65, "extraDamage", 5);
         } else if (choice === "leave") {
           this.say("\nYou leave the store.");
           this.printStats(player);

@@ -22,6 +22,7 @@ def create_player():
         "mana": 50,
         "manaMax": 50,
         "armor": 0,
+        "weaponDamage": 0,
         "extraDamage": 0,
         "backpack": [],
         "spells": [],
@@ -47,6 +48,7 @@ def print_stats(player):
         f"{player['mana']}/{player['manaMax']}{Style.RESET_ALL}"
     )
     print(f"Armor: {Fore.LIGHTCYAN_EX}{player['armor']}{Style.RESET_ALL}")
+    print(f"Weapon Damage: {Fore.LIGHTYELLOW_EX}+{player.get('weaponDamage', 0)}{Style.RESET_ALL}")
     print(f"Spell Damage: {Fore.LIGHTMAGENTA_EX}+{player['extraDamage']}{Style.RESET_ALL}")
 
     spells = ", ".join(player["spells"]) if player["spells"] else "None"

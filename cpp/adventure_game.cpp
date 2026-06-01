@@ -29,8 +29,10 @@ constexpr int BASIC_DAMAGE = 5;
 constexpr int STATUS_DAMAGE = 3;
 constexpr const char* FINISHED_SCENE = "finished";
 constexpr const char* SAVE_PATH = "saves/cpp_autosave.cppsave";
+constexpr const char* EXIT_LABEL = "Exit Game";
 
 struct GameOver : std::exception {};
+struct ExitGame : std::exception {};
 
 namespace term {
 constexpr const char* RESET = "\033[0m";
@@ -115,6 +117,7 @@ struct Spell {
 struct Monster {
     int health = 0;
     int damage = 0;
+    int reward = 10;
     std::vector<std::string> attacks;
 };
 
@@ -125,6 +128,7 @@ struct Player {
     int mana = 50;
     int mana_max = 50;
     int armor = 0;
+    int weapon_damage = 0;
     int extra_damage = 0;
     std::vector<std::string> backpack;
     std::vector<std::string> spells;
@@ -221,6 +225,11 @@ void say(const std::string& message) {
     std::cout << message << "\n";
 }
 
+void exit_game() {
+    say("\nGoodbye.");
+    throw ExitGame();
+}
+
 void divider(const std::string& title) {
     std::cout << "\n" << term::bright_yellow("=== " + title + " ===") << "\n";
 }
@@ -264,6 +273,11 @@ const std::vector<std::string>& scene_order() {
         "forest",
         "twin_doors",
         "witch",
+        "mountain_pass",
+        "moonlit_market",
+        "vampire_castle",
+        "dragon_gate",
+        "final_battle",
     };
     return order;
 }
@@ -278,6 +292,11 @@ const std::unordered_map<std::string, std::string>& scene_titles() {
         {"forest", "Forest Trail"},
         {"twin_doors", "Twin Doors"},
         {"witch", "Witch"},
+        {"mountain_pass", "Mountain Pass"},
+        {"moonlit_market", "Moonlit Market"},
+        {"vampire_castle", "Vampire Castle"},
+        {"dragon_gate", "Dragon Gate"},
+        {"final_battle", "Final Battle"},
         {FINISHED_SCENE, "Finished Game"},
     };
     return titles;
@@ -289,6 +308,9 @@ const std::unordered_map<std::string, Spell>& spells() {
         {"Arcane Blast", {true, 0, false, 0, 15, 0, 2, "Stuns an enemy for 2 turns."}},
         {"Thunderstorm", {true, 20, false, 0, 20, 0, 0, "Deals 20 damage."}},
         {"Restoration Incantation", {false, 0, true, 10, 7, 0, 0, "Heals 10 health in battle."}},
+        {"Frost Nova", {true, 12, false, 0, 12, 0, 1, "Deals 12 damage and chills an enemy still for 1 turn."}},
+        {"Solar Beam", {true, 30, false, 0, 25, 2, 0, "Deals 30 damage and leaves a bright burn."}},
+        {"Life Bloom", {false, 0, true, 25, 15, 0, 0, "Heals 25 health in battle."}},
         {"Lockio Reducto", {false, 0, false, 0, 0, 0, 0, "Unlocks sealed doors."}},
     };
     return data;
@@ -296,13 +318,17 @@ const std::unordered_map<std::string, Spell>& spells() {
 
 const std::unordered_map<std::string, Monster>& monsters() {
     static const std::unordered_map<std::string, Monster> data = {
-        {"goblin", {20, 5, {"punch", "screech", "headbutt"}}},
-        {"troll", {30, 7, {"club", "slam", "bite"}}},
-        {"skeleton", {15, 12, {"bone club", "bone scare", "bone headbutt"}}},
-        {"werewolf", {40, 15, {"claw", "bite", "howl"}}},
-        {"ogre", {50, 25, {"big club", "super smash", "stomp"}}},
-        {"witch", {35, 10, {"poison", "curse", "hex"}}},
-        {"vampire", {45, 17, {"transform into bat", "fangs", "suck blood"}}},
+        {"goblin", {20, 5, 10, {"punch", "screech", "headbutt"}}},
+        {"troll", {30, 7, 10, {"club", "slam", "bite"}}},
+        {"skeleton", {15, 12, 10, {"bone club", "bone scare", "bone headbutt"}}},
+        {"werewolf", {40, 15, 10, {"claw", "bite", "howl"}}},
+        {"ogre", {50, 25, 10, {"big club", "super smash", "stomp"}}},
+        {"witch", {35, 10, 10, {"poison", "curse", "hex"}}},
+        {"vampire", {45, 17, 20, {"transform into bat", "fangs", "suck blood"}}},
+        {"ice goblin", {35, 14, 15, {"snowball uppercut", "cold toes", "icicle bonk"}}},
+        {"shadow knight", {60, 20, 25, {"gloom blade", "helmet glare", "dramatic cape slap"}}},
+        {"crystal dragon", {80, 24, 35, {"sparkle breath", "tail sweep", "gemstone sneeze"}}},
+        {"lord dreadbiscuit", {95, 26, 50, {"cookie crumble", "royal tantrum", "butter curse"}}},
     };
     return data;
 }
@@ -317,6 +343,9 @@ const std::vector<std::string>& loot_drops() {
         "Mystery Goop",
         "Strange Liquid",
         "Gnarled Toenail",
+        "Moon Cheese",
+        "Dragon Scale Chip",
+        "Haunted Button",
     };
     return drops;
 }
@@ -330,6 +359,9 @@ bool is_sellable_loot(const std::string& item) {
         "Mystery Goop",
         "Strange Liquid",
         "Gnarled Toenail",
+        "Moon Cheese",
+        "Dragon Scale Chip",
+        "Haunted Button",
     };
     return std::find(sellable.begin(), sellable.end(), item) != sellable.end();
 }
@@ -339,8 +371,15 @@ std::unordered_map<std::string, bool> create_shop_stock() {
         {"Arcane Blast", true},
         {"Thunderstorm", true},
         {"Restoration Incantation", true},
+        {"Frost Nova", true},
+        {"Solar Beam", true},
+        {"Life Bloom", true},
         {"Glorious Helmet", true},
         {"Mage Boots", true},
+        {"Crystal Sword", true},
+        {"Phoenix Feather", true},
+        {"Dragon Scale Shield", true},
+        {"Star Cloak", true},
     };
 }
 
@@ -404,6 +443,7 @@ void print_stats(const Player& player) {
     std::cout << "Health: " << health_text(player.health, player.health_max) << "\n";
     std::cout << "Mana: " << mana_text(player.mana, player.mana_max) << "\n";
     std::cout << "Armor: " << term::bright_cyan(std::to_string(player.armor)) << "\n";
+    std::cout << "Weapon Damage: " << term::bright_yellow("+" + std::to_string(player.weapon_damage)) << "\n";
     std::cout << "Spell Damage: " << term::bright_magenta("+" + std::to_string(player.extra_damage)) << "\n";
 
     std::cout << "Spells: ";
@@ -543,6 +583,21 @@ std::string choose_left_or_right(const std::string& prompt) {
     return ask_choice(prompt, {{"left", {"left", "l", "1"}}, {"right", {"right", "r", "2"}}}, "\nPlease choose left or right.");
 }
 
+int basic_damage(const Player& player) {
+    return BASIC_DAMAGE + player.weapon_damage;
+}
+
+bool try_combat_revive(Player& player) {
+    if (!has_item(player, "Phoenix Feather")) {
+        return false;
+    }
+    remove_item(player, "Phoenix Feather");
+    player.health = std::max(1, player.health_max / 2);
+    say("\nThe Phoenix Feather bursts into warm sparks and pulls you back to " +
+        health_value_text(player.health, player.health_max) + " health!");
+    return true;
+}
+
 void game_over(const Player& player) {
     say("You have been defeated!");
     std::cout << term::red("GAME OVER") << "\nYou had " << money_text(player.money) << ".\n";
@@ -578,13 +633,14 @@ std::string spell_detail(const Player& player, const Spell& spell) {
 
 std::string choose_combat_action(const std::string& monster_name, int monster_health, int monster_max_health, const Player& player) {
     std::ostringstream subtitle;
+    int basic_attack_damage = basic_damage(player);
     subtitle << "You: " << health_text(player.health, player.health_max)
              << " | Mana: " << mana_value_text(player.mana, player.mana_max)
              << " | " << scene_title(monster_name) << ": "
              << health_value_text(std::max(monster_health, 0), monster_max_health);
 
     std::vector<MenuOption> options = {
-        {"1", "Basic Attack", "basic", "free, " + std::to_string(BASIC_DAMAGE) + " damage", {"basic", "attack", "hit", "punch"}},
+        {"1", "Basic Attack", "basic", "free, " + std::to_string(basic_attack_damage) + " damage", {"basic", "attack", "hit", "punch"}},
     };
 
     int next_key = 2;
@@ -642,11 +698,12 @@ int monster_attack(const std::string& monster_name, const Monster& monster, Play
 
 void win_fight(const std::string& monster_name, Player& player) {
     say("The " + monster_name + " has been defeated!");
-    player.money += 10;
+    int reward = monsters().at(monster_name).reward;
+    player.money += reward;
     std::string drop = random_choice(loot_drops());
     player.backpack.push_back(drop);
     player.mana = player.mana_max;
-    say("You gained " + money_text(10) + " and found a " + term::bright_green(drop) + ".");
+    say("You gained " + money_text(reward) + " and found a " + term::bright_green(drop) + ".");
     print_stats(player);
 }
 
@@ -668,7 +725,7 @@ void spell_fight(const std::string& monster_name, Player& player) {
             poison_ticks -= 1;
             say("The poison burns you for " + std::to_string(STATUS_DAMAGE) + " damage. Health: " +
                 health_value_text(player.health, player.health_max));
-            if (player.health <= 0) {
+            if (player.health <= 0 && !try_combat_revive(player)) {
                 game_over(player);
             }
         }
@@ -686,8 +743,9 @@ void spell_fight(const std::string& monster_name, Player& player) {
 
         std::string action = choose_combat_action(monster_name, monster_health, monster_max_health, player);
         if (action == "basic") {
-            monster_health -= BASIC_DAMAGE;
-            say("You strike for " + std::to_string(BASIC_DAMAGE) + " damage.");
+            int damage = basic_damage(player);
+            monster_health -= damage;
+            say("You strike for " + std::to_string(damage) + " damage.");
         } else {
             const Spell& spell = spells().at(action);
             player.mana -= spell.mana_cost;
@@ -726,7 +784,7 @@ void spell_fight(const std::string& monster_name, Player& player) {
             poison_ticks = std::max(poison_ticks, monster_attack(monster_name, monster, player));
         }
 
-        if (player.health <= 0) {
+        if (player.health <= 0 && !try_combat_revive(player)) {
             game_over(player);
         }
 
@@ -836,6 +894,22 @@ void buy_item(Player& player, const std::string& item_name, int price) {
     say("You have " + money_text(player.money) + " left.");
 }
 
+void buy_stocked_item(Player& player, std::unordered_map<std::string, bool>& stock, const std::string& item_name, int price) {
+    if (!stock[item_name]) {
+        say("\nThat item is out of stock.");
+        return;
+    }
+    if (player.money < price) {
+        say("\nYou don't have enough money.");
+        return;
+    }
+    player.money -= price;
+    player.backpack.push_back(item_name);
+    stock[item_name] = false;
+    say("\nYou bought a " + term::bright_green(item_name) + ".");
+    say("You have " + money_text(player.money) + " left.");
+}
+
 void buy_equipment(Player& player, std::unordered_map<std::string, bool>& stock, const std::string& item_name, int price, const std::string& stat_name, int amount) {
     if (!stock[item_name]) {
         say("\nThat equipment is out of stock.");
@@ -850,6 +924,8 @@ void buy_equipment(Player& player, std::unordered_map<std::string, bool>& stock,
         player.armor += amount;
     } else if (stat_name == "extraDamage") {
         player.extra_damage += amount;
+    } else if (stat_name == "weaponDamage") {
+        player.weapon_damage += amount;
     }
     player.backpack.push_back(item_name);
     stock[item_name] = false;
@@ -901,7 +977,7 @@ void buy_mana(Player& player) {
     }
 }
 
-void run_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool advanced = false) {
+void run_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool advanced = false, bool legendary = false) {
     sell_scraps(player);
 
     while (true) {
@@ -917,7 +993,18 @@ void run_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool
             options.push_back({"6", "Big Health Potion", "big_potion", money_text(40) + " - restores full health", {"big", "big potion", "full potion"}, true, price_status(player, 40)});
             options.push_back({"7", "Glorious Helmet", "helmet", money_text(50) + " - +5 armor", {"helmet", "armor"}, stock["Glorious Helmet"], price_status(player, 50, !stock["Glorious Helmet"], "owned")});
             options.push_back({"8", "Mage Boots", "boots", money_text(35) + " - +3 spell damage", {"boots", "mage boots", "damage"}, stock["Mage Boots"], price_status(player, 35, !stock["Mage Boots"], "owned")});
-            options.push_back({"9", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+            options.push_back({"9", "Frost Nova", "frost_nova", money_text(35) + " - " + spells().at("Frost Nova").description, {"frost", "frost nova", "spell 9"}, stock["Frost Nova"], price_status(player, 35, !stock["Frost Nova"], "learned")});
+            options.push_back({"10", "Crystal Sword", "crystal_sword", money_text(45) + " - +7 basic attack damage", {"sword", "crystal sword", "weapon"}, stock["Crystal Sword"], price_status(player, 45, !stock["Crystal Sword"], "owned")});
+            options.push_back({"11", "Phoenix Feather", "phoenix_feather", money_text(55) + " - revives you once in combat", {"phoenix", "feather", "revive"}, stock["Phoenix Feather"], price_status(player, 55, !stock["Phoenix Feather"], "owned")});
+            if (legendary) {
+                options.push_back({"12", "Solar Beam", "solar_beam", money_text(60) + " - " + spells().at("Solar Beam").description, {"solar", "solar beam", "spell 12"}, stock["Solar Beam"], price_status(player, 60, !stock["Solar Beam"], "learned")});
+                options.push_back({"13", "Life Bloom", "life_bloom", money_text(45) + " - " + spells().at("Life Bloom").description, {"life", "life bloom", "heal spell"}, stock["Life Bloom"], price_status(player, 45, !stock["Life Bloom"], "learned")});
+                options.push_back({"14", "Dragon Scale Shield", "dragon_shield", money_text(70) + " - +8 armor", {"shield", "dragon shield", "dragon scale"}, stock["Dragon Scale Shield"], price_status(player, 70, !stock["Dragon Scale Shield"], "owned")});
+                options.push_back({"15", "Star Cloak", "star_cloak", money_text(65) + " - +5 spell damage", {"cloak", "star cloak"}, stock["Star Cloak"], price_status(player, 65, !stock["Star Cloak"], "owned")});
+                options.push_back({"16", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+            } else {
+                options.push_back({"12", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+            }
         } else {
             options.push_back({"6", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
         }
@@ -944,6 +1031,20 @@ void run_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool
             buy_equipment(player, stock, "Glorious Helmet", 50, "armor", 5);
         } else if (choice == "boots") {
             buy_equipment(player, stock, "Mage Boots", 35, "extraDamage", 3);
+        } else if (choice == "frost_nova") {
+            buy_spell(player, stock, "Frost Nova", 35);
+        } else if (choice == "crystal_sword") {
+            buy_equipment(player, stock, "Crystal Sword", 45, "weaponDamage", 7);
+        } else if (choice == "phoenix_feather") {
+            buy_stocked_item(player, stock, "Phoenix Feather", 55);
+        } else if (choice == "solar_beam") {
+            buy_spell(player, stock, "Solar Beam", 60);
+        } else if (choice == "life_bloom") {
+            buy_spell(player, stock, "Life Bloom", 45);
+        } else if (choice == "dragon_shield") {
+            buy_equipment(player, stock, "Dragon Scale Shield", 70, "armor", 8);
+        } else if (choice == "star_cloak") {
+            buy_equipment(player, stock, "Star Cloak", 65, "extraDamage", 5);
         } else if (choice == "leave") {
             say("\nYou leave the store.");
             print_stats(player);
@@ -978,10 +1079,10 @@ void save_state(const State& state, const std::string& path = SAVE_PATH) {
         throw std::runtime_error("Could not write save file.");
     }
     const Player& p = state.player;
-    out << "AdventureGameCppSaveV1\n";
+    out << "AdventureGameCppSaveV2\n";
     out << state.next_scene << "\n";
     out << p.money << "\n" << p.health << "\n" << p.health_max << "\n" << p.mana << "\n"
-        << p.mana_max << "\n" << p.armor << "\n" << p.extra_damage << "\n";
+        << p.mana_max << "\n" << p.armor << "\n" << p.weapon_damage << "\n" << p.extra_damage << "\n";
     write_vector(out, p.backpack);
     write_vector(out, p.spells);
     out << state.shop_stock.size() << "\n";
@@ -997,7 +1098,8 @@ State load_state(const std::string& path = SAVE_PATH) {
     }
     std::string line;
     std::getline(in, line);
-    if (line != "AdventureGameCppSaveV1") {
+    bool version_2 = line == "AdventureGameCppSaveV2";
+    if (line != "AdventureGameCppSaveV1" && !version_2) {
         throw std::runtime_error("Save file is not a C++ port save.");
     }
 
@@ -1011,6 +1113,9 @@ State load_state(const std::string& path = SAVE_PATH) {
     std::getline(in, line); p.mana = std::stoi(line);
     std::getline(in, line); p.mana_max = std::stoi(line);
     std::getline(in, line); p.armor = std::stoi(line);
+    if (version_2) {
+        std::getline(in, line); p.weapon_damage = std::stoi(line);
+    }
     std::getline(in, line); p.extra_damage = std::stoi(line);
     p.backpack = read_vector(in);
     p.spells = read_vector(in);
@@ -1041,10 +1146,14 @@ State load_state_interactive() {
         std::string choice = choose_menu("Load Game", {
             {"1", "Load C++ Autosave", "autosave", SAVE_PATH, {"load", "autosave", "continue"}},
             {"2", "Back", "back", "", {"back", "cancel"}},
+            {"3", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
         }, "Load choice: ", "C++ port saves are stored separately from Python/web saves.");
 
         if (choice == "back") {
             throw std::runtime_error("back");
+        }
+        if (choice == "exit") {
+            exit_game();
         }
         try {
             State state = load_state();
@@ -1227,6 +1336,90 @@ void witch_scene(Player& player) {
     offer_potions(player);
 }
 
+void mountain_pass_scene(Player& player) {
+    say("\nPast the witch's corridor, the road climbs into a mountain pass.");
+    say("A sign reads: FINAL CASTLE THIS WAY. Under it, someone wrote: probably.");
+    if (fight_or_run("\nAn ice goblin rolls down the hill at you. Do you fight or run? ") == "run") {
+        say("\nYou try to run downhill, which works until the hill runs out.");
+        game_over(player);
+    }
+
+    spell_fight("ice goblin", player);
+    int reward = random_int(35, 50);
+    player.money += reward;
+    player.backpack.push_back("Moon Cheese");
+    say("\nThe ice goblin's lunchbox pops open. You find " + money_text(reward) + " and some Moon Cheese.");
+    print_stats(player);
+    offer_potions(player);
+}
+
+void moonlit_market_scene(Player& player, std::unordered_map<std::string, bool>& shop_stock) {
+    say("\nAt the top of the pass, paper lanterns glow over the Moonlit Market.");
+    say("A merchant named Madam Probably says, \"Everything here is almost safe.\"");
+    run_shop(player, shop_stock, true);
+
+    say("\nBehind the last stall, a shadow knight blocks the castle road.");
+    if (fight_or_run() == "run") {
+        say("\nThe knight sighs, walks faster than you, and bonks you with the flat of a gloomy sword.");
+        game_over(player);
+    }
+    spell_fight("shadow knight", player);
+    player.money += 30;
+    say("\nThe shadow knight drops " + money_text(30) + " and a note that says: please stop Lord Dreadbiscuit.");
+    print_stats(player);
+    offer_potions(player);
+}
+
+void vampire_castle_scene(Player& player) {
+    say("\nYou reach a castle shaped like a fancy tooth.");
+    say("Inside, a vampire is practicing scary faces in a mirror that refuses to help.");
+    if (fight_or_run("\nThe vampire notices you. Do you fight or run? ") == "run") {
+        say("\nYou run into a closet full of capes. The capes win.");
+        game_over(player);
+    }
+
+    spell_fight("vampire", player);
+    player.backpack.push_back("Silver Key of Mild Concern");
+    player.money += 40;
+    say("\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus " + money_text(40) + ".");
+    print_stats(player);
+    offer_potions(player);
+}
+
+void dragon_gate_scene(Player& player, std::unordered_map<std::string, bool>& shop_stock) {
+    say("\nThe Silver Key fits a gate made of old dragon scales.");
+    say("Next to it, two blacksmiths argue over whether anvils count as musical instruments.");
+    say("They call their shop The Dragon Forge and offer one last chance to gear up.");
+    run_shop(player, shop_stock, true, true);
+
+    say("\nWhen you unlock the gate, a crystal dragon wakes up and sneezes rainbows everywhere.");
+    if (fight_or_run("\nDo you fight the crystal dragon or run? ") == "run") {
+        say("\nYou run. The dragon thinks this is fetch.");
+        game_over(player);
+    }
+
+    spell_fight("crystal dragon", player);
+    player.backpack.push_back("Dragon Scale Chip");
+    player.money += 60;
+    say("\nThe dragon bows, gives you a Dragon Scale Chip, and pushes " + money_text(60) + " into your hands.");
+    print_stats(player);
+    offer_potions(player);
+}
+
+void final_battle_scene(Player& player) {
+    say("\nBeyond the gate stands Lord Dreadbiscuit, wearing a crown far too small for his ego.");
+    say("\"At last,\" he says, \"someone has come to challenge my mildly inconvenient darkness.\"");
+    if (fight_or_run("\nDo you fight Lord Dreadbiscuit or run? ") == "run") {
+        say("\nYou turn around and step on a cursed cookie crumb.");
+        game_over(player);
+    }
+
+    spell_fight("lord dreadbiscuit", player);
+    say("\nLord Dreadbiscuit wobbles, crumbles, and apologizes to everyone he has inconvenienced.");
+    say("Rumblerod appears from behind a curtain and insists he was helping invisibly the whole time.");
+    print_stats(player);
+}
+
 void run_scene(const std::string& scene_id, Player& player, std::unordered_map<std::string, bool>& shop_stock) {
     if (scene_id == "intro") {
         intro_scene(player);
@@ -1245,14 +1438,25 @@ void run_scene(const std::string& scene_id, Player& player, std::unordered_map<s
         twin_doors_scene(player);
     } else if (scene_id == "witch") {
         witch_scene(player);
+    } else if (scene_id == "mountain_pass") {
+        mountain_pass_scene(player);
+    } else if (scene_id == "moonlit_market") {
+        moonlit_market_scene(player, shop_stock);
+    } else if (scene_id == "vampire_castle") {
+        vampire_castle_scene(player);
+    } else if (scene_id == "dragon_gate") {
+        dragon_gate_scene(player, shop_stock);
+    } else if (scene_id == "final_battle") {
+        final_battle_scene(player);
     } else {
         throw std::runtime_error("Unknown story checkpoint.");
     }
 }
 
 void finish_game(const Player& player) {
-    say("\nYou make it through the corridor alive. The road ahead is finally quiet.");
-    say("\nAdventure Game is still currently being developed by Thunderstruck7 and Lord Funion. Check back later for more.");
+    say("\nLord Dreadbiscuit's castle crumbles into a suspiciously buttery pile of crumbs.");
+    say("\nYou beat Adventure Game and saved the realm. The villages are safe, and even Rumblerod admits you did most of the work.");
+    say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.");
     std::cout << "\n" << term::bright_yellow("THE END") << "\nYou finished with " << money_text(player.money) << ".\n";
 }
 
@@ -1265,6 +1469,7 @@ bool checkpoint_menu(State& state) {
             {"3", "Load Game", "load", "", {"load", "l"}},
             {"4", "Cloud Saves", "cloud", "", {"cloud", "online", "sync"}},
             {"5", "Player Stats", "stats", "", {"stats", "status"}},
+            {"6", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
         }, "Checkpoint choice: ", subtitle);
 
         if (choice == "continue") {
@@ -1289,6 +1494,8 @@ bool checkpoint_menu(State& state) {
             say("\nCloud saves are not available in the C++ port.");
         } else if (choice == "stats") {
             print_stats(state.player);
+        } else if (choice == "exit") {
+            exit_game();
         }
     }
 }
@@ -1326,6 +1533,7 @@ std::string restart_menu() {
     return choose_menu("Game Over", {
         {"1", "Restart", "restart", "", {"restart", "r", "new game", "new"}},
         {"2", "Main Menu", "main", "", {"main", "menu", "m"}},
+        {"3", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
     }, "Game over choice: ");
 }
 
@@ -1335,6 +1543,7 @@ State main_menu_state() {
             {"1", "New Game", "new", "", {"new", "start"}},
             {"2", "Load Game", "load", "", {"load", "continue"}},
             {"3", "Cloud Saves", "cloud", "", {"cloud", "online", "sync"}},
+            {"4", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
         }, "Main menu choice: ");
 
         if (choice == "new") {
@@ -1352,6 +1561,9 @@ State main_menu_state() {
         }
         if (choice == "cloud") {
             say("\nCloud saves are not available in the C++ port.");
+        }
+        if (choice == "exit") {
+            exit_game();
         }
     }
 }
@@ -1427,6 +1639,8 @@ void run_game() {
             } else if (choice == "main") {
                 show_logo();
                 mode = "menu";
+            } else if (choice == "exit") {
+                exit_game();
             }
         }
     }
@@ -1436,6 +1650,8 @@ int main() {
     try {
         use_executable_directory();
         run_game();
+    } catch (const ExitGame&) {
+        return 0;
     } catch (const std::exception& exc) {
         std::cerr << "\nAdventure Game C++ port error: " << exc.what() << "\n";
         return 1;

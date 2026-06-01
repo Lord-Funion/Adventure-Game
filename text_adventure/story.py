@@ -25,10 +25,11 @@ from .save_system import (
 )
 from .shop import run_shop
 from .terminal_colors import Fore, Style
-from .ui import MenuOption, ask_choice, choose_menu
+from .ui import MenuOption, ask_choice, choose_menu, money_text
 
 
 FINISHED_SCENE = "finished"
+EXIT_LABEL = "Exit Game"
 SCENE_ORDER = (
     "intro",
     "wizard",
@@ -38,6 +39,11 @@ SCENE_ORDER = (
     "forest",
     "twin_doors",
     "witch",
+    "mountain_pass",
+    "moonlit_market",
+    "vampire_castle",
+    "dragon_gate",
+    "final_battle",
 )
 SCENE_TITLES = {
     "intro": "Chocolate Frog",
@@ -48,8 +54,22 @@ SCENE_TITLES = {
     "forest": "Forest Trail",
     "twin_doors": "Twin Doors",
     "witch": "Witch",
+    "mountain_pass": "Mountain Pass",
+    "moonlit_market": "Moonlit Market",
+    "vampire_castle": "Vampire Castle",
+    "dragon_gate": "Dragon Gate",
+    "final_battle": "Final Battle",
     FINISHED_SCENE: "Finished Game",
 }
+
+
+class ExitGame(SystemExit):
+    """Raised when the player chooses an explicit terminal Exit option."""
+
+
+def _exit_game():
+    say("\nGoodbye.", "quick")
+    raise ExitGame(0)
 
 
 def yes_no(prompt):
@@ -93,8 +113,15 @@ def _create_shop_stock():
         "Arcane Blast": True,
         "Thunderstorm": True,
         "Restoration Incantation": True,
+        "Frost Nova": True,
+        "Solar Beam": True,
+        "Life Bloom": True,
         "Glorious Helmet": True,
         "Mage Boots": True,
+        "Crystal Sword": True,
+        "Phoenix Feather": True,
+        "Dragon Scale Shield": True,
+        "Star Cloak": True,
     }
 
 
@@ -138,7 +165,7 @@ def _normalize_state(raw_state):
         raise SaveError("The save does not contain a valid player.")
 
     player = create_player()
-    for key in ("money", "health", "healthMax", "mana", "manaMax", "armor", "extraDamage"):
+    for key in ("money", "health", "healthMax", "mana", "manaMax", "armor", "weaponDamage", "extraDamage"):
         player[key] = _normalize_int(raw_player.get(key, player[key]), key)
     player["backpack"] = _normalize_string_list(raw_player.get("backpack", []), "backpack")
     player["spells"] = _normalize_string_list(raw_player.get("spells", []), "spells")
@@ -324,6 +351,14 @@ def _cloud_load_interactive():
             aliases=("back", "cancel"),
         )
     )
+    options.append(
+        MenuOption(
+            str(len(options) + 1),
+            EXIT_LABEL,
+            "exit",
+            aliases=("exit", "quit", "q"),
+        )
+    )
 
     slot_name = choose_menu(
         "Load Cloud Save",
@@ -333,6 +368,8 @@ def _cloud_load_interactive():
     )
     if slot_name == "back":
         return None
+    if slot_name == "exit":
+        _exit_game()
 
     try:
         response = cloud_saves.download_save(slot_name)
@@ -389,6 +426,12 @@ def _cloud_menu(current_state=None):
                         "back",
                         aliases=("back", "cancel"),
                     ),
+                    MenuOption(
+                        str(next_key + 3),
+                        EXIT_LABEL,
+                        "exit",
+                        aliases=("exit", "quit", "q"),
+                    ),
                 ]
             )
         else:
@@ -397,6 +440,7 @@ def _cloud_menu(current_state=None):
                     MenuOption("1", "Create Account", "register", aliases=("register", "create")),
                     MenuOption("2", "Sign In", "login", aliases=("login", "sign in")),
                     MenuOption("3", "Back", "back", aliases=("back", "cancel")),
+                    MenuOption("4", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
                 ]
             )
 
@@ -422,6 +466,8 @@ def _cloud_menu(current_state=None):
             say("\nSigned out of cloud saves on this device.", "quick")
         elif choice == "back":
             return None
+        elif choice == "exit":
+            _exit_game()
 
 
 def _load_state_interactive():
@@ -457,6 +503,14 @@ def _load_state_interactive():
                 aliases=("back", "cancel"),
             )
         )
+        options.append(
+            MenuOption(
+                str(len(options) + 1),
+                EXIT_LABEL,
+                "exit",
+                aliases=("exit", "quit", "q"),
+            )
+        )
 
         choice = choose_menu(
             "Load Game",
@@ -466,6 +520,8 @@ def _load_state_interactive():
         )
         if choice == "back":
             return None
+        if choice == "exit":
+            _exit_game()
         if choice == "custom":
             typed_path = ask("\nSave file path: ")
             if not typed_path:
@@ -516,6 +572,7 @@ def _checkpoint_menu(state):
                 MenuOption("3", "Load Game", "load", aliases=("load", "l")),
                 MenuOption("4", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
                 MenuOption("5", "Player Stats", "stats", aliases=("stats", "status")),
+                MenuOption("6", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
             ],
             prompt="Checkpoint choice: ",
             subtitle=subtitle,
@@ -535,6 +592,8 @@ def _checkpoint_menu(state):
                 return loaded_state
         elif choice == "stats":
             print_stats(state["player"])
+        elif choice == "exit":
+            _exit_game()
 
 
 def _run_scene(scene_id, player, shop_stock):
@@ -555,17 +614,24 @@ def _run_scene(scene_id, player, shop_stock):
         twin_doors_scene(player)
     elif scene_id == "witch":
         witch_scene(player)
+    elif scene_id == "mountain_pass":
+        mountain_pass_scene(player)
+    elif scene_id == "moonlit_market":
+        moonlit_market_scene(player, shop_stock)
+    elif scene_id == "vampire_castle":
+        vampire_castle_scene(player)
+    elif scene_id == "dragon_gate":
+        dragon_gate_scene(player, shop_stock)
+    elif scene_id == "final_battle":
+        final_battle_scene(player)
     else:
         raise SaveError("Unknown story checkpoint.")
 
 
 def _finish_game(player):
-    say("\nYou make it through the corridor alive. The road ahead is finally quiet.", "scene")
-    say(
-        "\nAdventure Game is still currently being developed by "
-        "Thunderstruck7 and Lord Funion. Check back later for more.",
-        "scene",
-    )
+    say("\nLord Dreadbiscuit's castle crumbles into a suspiciously buttery pile of crumbs.", "scene")
+    say("\nYou beat Adventure Game and saved the realm. The villages are safe, and even Rumblerod admits you did most of the work.", "scene")
+    say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.", "scene")
     say(f"\nTHE END\nYou finished with {Fore.YELLOW}${player['money']}{Style.RESET_ALL}.", "none")
 
 
@@ -605,6 +671,7 @@ def _restart_menu():
         [
             MenuOption("1", "Restart", "restart", aliases=("restart", "r", "new game", "new")),
             MenuOption("2", "Main Menu", "main", aliases=("main", "menu", "m")),
+            MenuOption("3", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
         ],
         prompt="Game over choice: ",
     )
@@ -633,6 +700,8 @@ def run_game(load_path=None):
                 if choice == "main":
                     show_startup_logo()
                     break
+                if choice == "exit":
+                    _exit_game()
 
     mode = "menu"
     while True:
@@ -648,6 +717,8 @@ def run_game(load_path=None):
                 elif choice == "main":
                     show_startup_logo()
                     mode = "menu"
+                elif choice == "exit":
+                    _exit_game()
                 continue
 
         try:
@@ -660,6 +731,8 @@ def run_game(load_path=None):
             elif choice == "main":
                 show_startup_logo()
                 mode = "menu"
+            elif choice == "exit":
+                _exit_game()
             continue
         if state is None:
             continue
@@ -674,6 +747,8 @@ def run_game(load_path=None):
             elif choice == "main":
                 show_startup_logo()
                 mode = "menu"
+            elif choice == "exit":
+                _exit_game()
 
 
 def _main_menu_state():
@@ -684,6 +759,7 @@ def _main_menu_state():
                 MenuOption("1", "New Game", "new", aliases=("new", "start")),
                 MenuOption("2", "Load Game", "load", aliases=("load", "continue")),
                 MenuOption("3", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
+                MenuOption("4", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
             ],
             prompt="Main menu choice: ",
         )
@@ -698,6 +774,8 @@ def _main_menu_state():
             state = _cloud_menu()
             if state is not None:
                 return state
+        if choice == "exit":
+            _exit_game()
 
 
 def intro_scene(player):
@@ -866,7 +944,7 @@ def twin_doors_scene(player):
 
 
 def witch_scene(player):
-    """Final current encounter."""
+    """Fight the witch guarding the way to the mountains."""
     say("\nYou continue down the corridor.")
     if fight_or_run("\nYou see a witch. Do you fight or run? ") == "run":
         say("\nYou run into the ogre's dad, who is very angry with you.", "beat")
@@ -874,3 +952,87 @@ def witch_scene(player):
 
     spell_fight("witch", player)
     offer_potions(player)
+
+
+def mountain_pass_scene(player):
+    """Climb toward the final valley and meet colder trouble."""
+    say("\nPast the witch's corridor, the road climbs into a mountain pass.")
+    say("A sign reads: FINAL CASTLE THIS WAY. Under it, someone wrote: probably.", "beat")
+    if fight_or_run("\nAn ice goblin rolls down the hill at you. Do you fight or run? ") == "run":
+        say("\nYou try to run downhill, which works until the hill runs out.", "beat")
+        game_over(player)
+
+    spell_fight("ice goblin", player)
+    reward = random.randint(35, 50)
+    player["money"] += reward
+    player["backpack"].append("Moon Cheese")
+    say(f"\nThe ice goblin's lunchbox pops open. You find {money_text(reward)} and some Moon Cheese.")
+    print_stats(player)
+    offer_potions(player)
+
+
+def moonlit_market_scene(player, shop_stock):
+    """A late-game market with weapons and stranger magic."""
+    say("\nAt the top of the pass, paper lanterns glow over the Moonlit Market.")
+    say('A merchant named Madam Probably says, "Everything here is almost safe."', "beat")
+    run_shop(player, shop_stock, advanced=True)
+
+    say("\nBehind the last stall, a shadow knight blocks the castle road.")
+    if fight_or_run() == "run":
+        say("\nThe knight sighs, walks faster than you, and bonks you with the flat of a gloomy sword.", "beat")
+        game_over(player)
+    spell_fight("shadow knight", player)
+    player["money"] += 30
+    say(f"\nThe shadow knight drops {money_text(30)} and a note that says: please stop Lord Dreadbiscuit.")
+    print_stats(player)
+    offer_potions(player)
+
+
+def vampire_castle_scene(player):
+    """Sneak through the vampire castle and steal the final key."""
+    say("\nYou reach a castle shaped like a fancy tooth.")
+    say("Inside, a vampire is practicing scary faces in a mirror that refuses to help.", "beat")
+    if fight_or_run("\nThe vampire notices you. Do you fight or run? ") == "run":
+        say("\nYou run into a closet full of capes. The capes win.", "beat")
+        game_over(player)
+
+    spell_fight("vampire", player)
+    player["backpack"].append("Silver Key of Mild Concern")
+    player["money"] += 40
+    say(f"\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus {money_text(40)}.")
+    print_stats(player)
+    offer_potions(player)
+
+
+def dragon_gate_scene(player, shop_stock):
+    """Prepare at the dragon forge and open the last gate."""
+    say("\nThe Silver Key fits a gate made of old dragon scales.")
+    say("Next to it, two blacksmiths argue over whether anvils count as musical instruments.")
+    say('They call their shop The Dragon Forge and offer one last chance to gear up.', "beat")
+    run_shop(player, shop_stock, advanced=True, legendary=True)
+
+    say("\nWhen you unlock the gate, a crystal dragon wakes up and sneezes rainbows everywhere.")
+    if fight_or_run("\nDo you fight the crystal dragon or run? ") == "run":
+        say("\nYou run. The dragon thinks this is fetch.", "beat")
+        game_over(player)
+
+    spell_fight("crystal dragon", player)
+    player["backpack"].append("Dragon Scale Chip")
+    player["money"] += 60
+    say(f"\nThe dragon bows, gives you a Dragon Scale Chip, and pushes {money_text(60)} into your hands.")
+    print_stats(player)
+    offer_potions(player)
+
+
+def final_battle_scene(player):
+    """Face the villain and complete the adventure."""
+    say("\nBeyond the gate stands Lord Dreadbiscuit, wearing a crown far too small for his ego.")
+    say('"At last," he says, "someone has come to challenge my mildly inconvenient darkness."', "beat")
+    if fight_or_run("\nDo you fight Lord Dreadbiscuit or run? ") == "run":
+        say("\nYou turn around and step on a cursed cookie crumb.", "beat")
+        game_over(player)
+
+    spell_fight("lord dreadbiscuit", player)
+    say("\nLord Dreadbiscuit wobbles, crumbles, and apologizes to everyone he has inconvenienced.")
+    say("Rumblerod appears from behind a curtain and insists he was helping invisibly the whole time.", "beat")
+    print_stats(player)
