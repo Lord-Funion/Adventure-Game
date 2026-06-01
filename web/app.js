@@ -206,17 +206,22 @@
     }
 
     appendLogo() {
-      const wrapper = document.createElement("div");
+      const wrapper = document.createElement("pre");
       wrapper.className = "terminal-logo";
-
-      const image = document.createElement("img");
-      image.src = "assets/logo.png";
-      image.alt = "Adventure Game";
-      image.width = 1254;
-      image.height = 1254;
-      image.decoding = "async";
-
-      wrapper.append(image);
+      wrapper.setAttribute("aria-label", "Adventure Game ASCII logo");
+      wrapper.textContent = [
+        "    ___       __                 __",
+        "   /   | ____/ /   _____  ____  / /___  __________",
+        "  / /| |/ __  / | / / _ \\/ __ \\/ __/ / / / ___/ _ \\",
+        " / ___ / /_/ /| |/ /  __/ / / / /_/ /_/ / /  /  __/",
+        "/_/  |_\\__,_/ |___/\\___/_/ /_/\\__/\\__,_/_/   \\___/",
+        "          ______",
+        "         / ____/___ _____ ___  ___",
+        "        / / __/ __ `/ __ `__ \\/ _ \\",
+        "       / /_/ / /_/ / / / / / /  __/",
+        "       \\____/\\__,_/_/ /_/ /_/\\___/",
+        "",
+      ].join("\n");
       this.output.append(wrapper);
       this.scrollToBottom();
       return wrapper;

@@ -116,14 +116,12 @@ body {
 }
 
 .terminal-logo {
-  width: min(260px, 64vw);
   margin: 0 0 14px;
-}
-
-.terminal-logo img {
-  display: block;
-  width: 100%;
-  height: auto;
+  overflow-x: auto;
+  color: var(--terminal-yellow);
+  font-size: clamp(10px, 2vw, 16px);
+  line-height: 1.08;
+  white-space: pre;
 }
 
 .red {
@@ -164,6 +162,6 @@ body {
   }
 
   .terminal-logo {
-    width: min(190px, 58vw);
+    font-size: clamp(8px, 2.45vw, 12px);
   }
 }

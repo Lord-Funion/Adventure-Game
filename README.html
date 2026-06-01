@@ -143,13 +143,6 @@
       margin-bottom: 14px;
     }
 
-    .project-logo {
-      display: block;
-      width: min(260px, 72vw);
-      height: auto;
-      margin: 0 auto 28px;
-    }
-
     .ascii-logo {
       width: max-content;
       max-width: 100%;
@@ -212,7 +205,16 @@
 </head>
 <body>
   <main>
-    <img class="project-logo" src="assets/logo.png" alt="Adventure Game logo">
+    <pre class="ascii-logo" aria-label="Adventure Game ASCII logo">    ___       __                 __
+   /   | ____/ /   _____  ____  / /___  __________
+  / /| |/ __  / | / / _ \/ __ \/ __/ / / / ___/ _ \
+ / ___ / /_/ /| |/ /  __/ / / / /_/ /_/ / /  /  __/
+/_/  |_\__,_/ |___/\___/_/ /_/\__/\__,_/_/   \___/
+          ______
+         / ____/___ _____ ___  ___
+        / / __/ __ `/ __ `__ \/ _ \
+       / /_/ / /_/ / / / / / /  __/
+       \____/\__,_/_/ /_/ /_/\___/</pre>
 
     <h1>Adventure Game Code Guide</h1>
     <p class="subtitle">This file explains how to run the game, where to make common edits, what every active Python file does, and what the important functions and variables control.</p>
@@ -241,7 +243,7 @@
 
       <p>In the web version, numbered menu rows, yes/no choices, left/right choices, fight/run choices, and combat spell rows can be clicked. Typing the number, command, or spell still works too. If you die, a restart menu appears.</p>
 
-      <p>To host it at <code>lordfunion.dev/adventure-game</code>, upload <code>index.html</code>, <code>web/</code>, and <code>assets/logo.png</code> from this branch into <code>public_html/adventure-game/</code>.</p>
+      <p>To host it at <code>lordfunion.dev/adventure-game</code>, upload <code>index.html</code> and <code>web/</code> from this branch into <code>public_html/adventure-game/</code>.</p>
 
       <p>Load a local encrypted save directly:</p>
       <pre><code>python3 main.py saves/autosave.tasave</code></pre>
@@ -685,10 +687,6 @@ TEXT_ADVENTURE_SPEED=instant python3 main.py</code></pre>
           <tr>
             <td><code>text_adventure/logo.py</code></td>
             <td>Prints the ASCII startup logo unless <code>TEXT_ADVENTURE_HIDE_LOGO</code> is set.</td>
-          </tr>
-          <tr>
-            <td><code>assets/logo.png</code></td>
-            <td>Image asset. The active terminal game currently prints an ASCII logo instead of loading this image.</td>
           </tr>
         </tbody>
       </table>
