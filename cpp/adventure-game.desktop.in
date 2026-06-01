@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Adventure Game
+Comment=Play the Adventure Game C++ console port
+Exec=@LINUX_LAUNCHER@
+Icon=utilities-terminal
+Terminal=false
+Categories=Game;

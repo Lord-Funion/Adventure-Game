@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -12,6 +14,15 @@
 #include <utility>
 #include <vector>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace fs = std::filesystem;
 
 constexpr int BASIC_DAMAGE = 5;
@@ -20,6 +31,75 @@ constexpr const char* FINISHED_SCENE = "finished";
 constexpr const char* SAVE_PATH = "saves/cpp_autosave.cppsave";
 
 struct GameOver : std::exception {};
+
+namespace term {
+constexpr const char* RESET = "\033[0m";
+constexpr const char* BOLD = "\033[1m";
+constexpr const char* DIM = "\033[2m";
+constexpr const char* RED = "\033[31m";
+constexpr const char* YELLOW = "\033[33m";
+constexpr const char* BLUE = "\033[34m";
+constexpr const char* MAGENTA = "\033[35m";
+constexpr const char* CYAN = "\033[36m";
+constexpr const char* BRIGHT_GREEN = "\033[92m";
+constexpr const char* BRIGHT_YELLOW = "\033[93m";
+constexpr const char* BRIGHT_CYAN = "\033[96m";
+constexpr const char* BRIGHT_MAGENTA = "\033[95m";
+
+bool no_color_requested() {
+    return std::getenv("NO_COLOR") != nullptr;
+}
+
+bool enable_virtual_terminal() {
+    if (no_color_requested()) {
+        return false;
+    }
+
+#ifdef _WIN32
+    HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (output == INVALID_HANDLE_VALUE || output == nullptr) {
+        return false;
+    }
+
+    DWORD mode = 0;
+    if (!GetConsoleMode(output, &mode)) {
+        return false;
+    }
+
+    mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    if (!SetConsoleMode(output, mode)) {
+        return false;
+    }
+    return true;
+#else
+    return isatty(fileno(stdout)) != 0;
+#endif
+}
+
+bool color_enabled() {
+    static const bool enabled = enable_virtual_terminal();
+    return enabled;
+}
+
+std::string paint(const std::string& text, const char* color) {
+    if (!color_enabled()) {
+        return text;
+    }
+    return std::string(color) + text + RESET;
+}
+
+std::string bold(const std::string& text) { return paint(text, BOLD); }
+std::string dim(const std::string& text) { return paint(text, DIM); }
+std::string red(const std::string& text) { return paint(text, RED); }
+std::string yellow(const std::string& text) { return paint(text, YELLOW); }
+std::string blue(const std::string& text) { return paint(text, BLUE); }
+std::string magenta(const std::string& text) { return paint(text, MAGENTA); }
+std::string cyan(const std::string& text) { return paint(text, CYAN); }
+std::string bright_green(const std::string& text) { return paint(text, BRIGHT_GREEN); }
+std::string bright_yellow(const std::string& text) { return paint(text, BRIGHT_YELLOW); }
+std::string bright_cyan(const std::string& text) { return paint(text, BRIGHT_CYAN); }
+std::string bright_magenta(const std::string& text) { return paint(text, BRIGHT_MAGENTA); }
+}
 
 struct Spell {
     bool has_damage = false;
@@ -129,7 +209,7 @@ std::string normalize_choice(const std::string& value) {
 }
 
 std::string ask(const std::string& prompt) {
-    std::cout << prompt;
+    std::cout << term::bright_cyan(prompt);
     std::string value;
     if (!std::getline(std::cin, value)) {
         throw std::runtime_error("Input stream closed.");
@@ -142,7 +222,7 @@ void say(const std::string& message) {
 }
 
 void divider(const std::string& title) {
-    std::cout << "\n=== " << title << " ===\n";
+    std::cout << "\n" << term::bright_yellow("=== " + title + " ===") << "\n";
 }
 
 std::string stat_meter(int current, int maximum, int width = 16) {
@@ -152,6 +232,26 @@ std::string stat_meter(int current, int maximum, int width = 16) {
     int capped = std::max(0, std::min(current, maximum));
     int filled = static_cast<int>((width * capped + maximum / 2) / maximum);
     return "[" + std::string(filled, '#') + std::string(width - filled, '-') + "]";
+}
+
+std::string money_text(int amount) {
+    return term::bright_yellow("$" + std::to_string(amount));
+}
+
+std::string health_text(int current, int maximum) {
+    return term::red(stat_meter(current, maximum) + " " + std::to_string(current) + "/" + std::to_string(maximum));
+}
+
+std::string health_value_text(int current, int maximum) {
+    return term::red(std::to_string(current) + "/" + std::to_string(maximum));
+}
+
+std::string mana_text(int current, int maximum) {
+    return term::blue(stat_meter(current, maximum) + " " + std::to_string(current) + "/" + std::to_string(maximum));
+}
+
+std::string mana_value_text(int current, int maximum) {
+    return term::blue(std::to_string(current) + "/" + std::to_string(maximum));
 }
 
 const std::vector<std::string>& scene_order() {
@@ -300,30 +400,29 @@ int count_item(const Player& player, const std::string& item) {
 
 void print_stats(const Player& player) {
     divider("Player Stats");
-    std::cout << "Money: $" << player.money << "\n";
-    std::cout << "Health: " << stat_meter(player.health, player.health_max) << " "
-              << player.health << "/" << player.health_max << "\n";
-    std::cout << "Mana: " << stat_meter(player.mana, player.mana_max) << " "
-              << player.mana << "/" << player.mana_max << "\n";
-    std::cout << "Armor: " << player.armor << "\n";
-    std::cout << "Spell Damage: +" << player.extra_damage << "\n";
+    std::cout << "Money: " << money_text(player.money) << "\n";
+    std::cout << "Health: " << health_text(player.health, player.health_max) << "\n";
+    std::cout << "Mana: " << mana_text(player.mana, player.mana_max) << "\n";
+    std::cout << "Armor: " << term::bright_cyan(std::to_string(player.armor)) << "\n";
+    std::cout << "Spell Damage: " << term::bright_magenta("+" + std::to_string(player.extra_damage)) << "\n";
 
     std::cout << "Spells: ";
     if (player.spells.empty()) {
-        std::cout << "None\n";
+        std::cout << term::magenta("None") << "\n";
     } else {
+        std::ostringstream spell_list;
         for (std::size_t i = 0; i < player.spells.size(); ++i) {
             if (i) {
-                std::cout << ", ";
+                spell_list << ", ";
             }
-            std::cout << player.spells[i];
+            spell_list << player.spells[i];
         }
-        std::cout << "\n";
+        std::cout << term::magenta(spell_list.str()) << "\n";
     }
 
     std::cout << "Items: ";
     if (player.backpack.empty()) {
-        std::cout << "None\n\n";
+        std::cout << term::bright_green("None") << "\n\n";
         return;
     }
 
@@ -332,17 +431,18 @@ void print_stats(const Player& player) {
         counts[item] += 1;
     }
     bool first = true;
+    std::ostringstream item_list;
     for (const auto& [item, count] : counts) {
         if (!first) {
-            std::cout << ", ";
+            item_list << ", ";
         }
         first = false;
-        std::cout << item;
+        item_list << item;
         if (count > 1) {
-            std::cout << " x" << count;
+            item_list << " x" << count;
         }
     }
-    std::cout << "\n\n";
+    std::cout << term::bright_green(item_list.str()) << "\n\n";
 }
 
 std::vector<std::string> option_inputs(const MenuOption& option) {
@@ -368,17 +468,30 @@ std::string choose_menu(
         }
 
         for (const MenuOption& option : options) {
-            std::cout << option.key << ". " << option.label;
+            std::ostringstream line;
+            line << option.key << ". " << option.label;
             if (!option.detail.empty()) {
-                std::cout << " - " << option.detail;
+                line << " - " << option.detail;
             }
             if (!option.status.empty()) {
-                std::cout << " (" << option.status << ")";
+                line << " (" << option.status << ")";
             }
             if (!option.enabled) {
-                std::cout << " [unavailable]";
+                line << " [unavailable]";
             }
-            std::cout << "\n";
+
+            if (option.enabled) {
+                std::cout << term::cyan(option.key) << ". " << term::bold(option.label);
+                if (!option.detail.empty()) {
+                    std::cout << " - " << option.detail;
+                }
+                if (!option.status.empty()) {
+                    std::cout << " (" << term::yellow(option.status) << ")";
+                }
+                std::cout << "\n";
+            } else {
+                std::cout << term::dim(line.str()) << "\n";
+            }
         }
 
         std::string choice = normalize_choice(ask(prompt));
@@ -432,7 +545,7 @@ std::string choose_left_or_right(const std::string& prompt) {
 
 void game_over(const Player& player) {
     say("You have been defeated!");
-    std::cout << "GAME OVER\nYou had $" << player.money << ".\n";
+    std::cout << term::red("GAME OVER") << "\nYou had " << money_text(player.money) << ".\n";
     throw GameOver();
 }
 
@@ -465,11 +578,10 @@ std::string spell_detail(const Player& player, const Spell& spell) {
 
 std::string choose_combat_action(const std::string& monster_name, int monster_health, int monster_max_health, const Player& player) {
     std::ostringstream subtitle;
-    subtitle << "You: " << stat_meter(player.health, player.health_max) << " "
-             << player.health << "/" << player.health_max
-             << " | Mana: " << player.mana << "/" << player.mana_max
+    subtitle << "You: " << health_text(player.health, player.health_max)
+             << " | Mana: " << mana_value_text(player.mana, player.mana_max)
              << " | " << scene_title(monster_name) << ": "
-             << std::max(monster_health, 0) << "/" << monster_max_health;
+             << health_value_text(std::max(monster_health, 0), monster_max_health);
 
     std::vector<MenuOption> options = {
         {"1", "Basic Attack", "basic", "free, " + std::to_string(BASIC_DAMAGE) + " damage", {"basic", "attack", "hit", "punch"}},
@@ -516,7 +628,7 @@ int monster_attack(const std::string& monster_name, const Monster& monster, Play
     player.health -= damage;
     if (damage) {
         say("You take " + std::to_string(damage) + " damage. Health: " +
-            std::to_string(player.health) + "/" + std::to_string(player.health_max));
+            health_value_text(player.health, player.health_max));
     } else {
         say("Your armor absorbs the hit.");
     }
@@ -534,7 +646,7 @@ void win_fight(const std::string& monster_name, Player& player) {
     std::string drop = random_choice(loot_drops());
     player.backpack.push_back(drop);
     player.mana = player.mana_max;
-    say("You gained $10 and found a " + drop + ".");
+    say("You gained " + money_text(10) + " and found a " + term::bright_green(drop) + ".");
     print_stats(player);
 }
 
@@ -547,15 +659,15 @@ void spell_fight(const std::string& monster_name, Player& player) {
     int poison_ticks = 0;
 
     say("\nA fight starts between you and the " + monster_name + "!");
-    say("The " + monster_name + " has " + std::to_string(monster_health) + " health.");
-    say("It does " + std::to_string(monster.damage) + " damage.");
+    say("The " + monster_name + " has " + term::red(std::to_string(monster_health)) + " health.");
+    say("It does " + term::bright_cyan(std::to_string(monster.damage)) + " damage.");
 
     while (monster_health > 0 && player.health > 0) {
         if (poison_ticks > 0) {
             player.health -= STATUS_DAMAGE;
             poison_ticks -= 1;
             say("The poison burns you for " + std::to_string(STATUS_DAMAGE) + " damage. Health: " +
-                std::to_string(player.health) + "/" + std::to_string(player.health_max));
+                health_value_text(player.health, player.health_max));
             if (player.health <= 0) {
                 game_over(player);
             }
@@ -565,7 +677,7 @@ void spell_fight(const std::string& monster_name, Player& player) {
             monster_health -= STATUS_DAMAGE;
             burn_turns -= 1;
             say("The " + monster_name + " burns for " + std::to_string(STATUS_DAMAGE) + " damage. Health: " +
-                std::to_string(std::max(monster_health, 0)) + "/" + std::to_string(monster_max_health));
+                health_value_text(std::max(monster_health, 0), monster_max_health));
             if (monster_health <= 0) {
                 win_fight(monster_name, player);
                 return;
@@ -618,8 +730,8 @@ void spell_fight(const std::string& monster_name, Player& player) {
             game_over(player);
         }
 
-        say("The " + monster_name + " has " + std::to_string(std::max(monster_health, 0)) + "/" +
-            std::to_string(monster_max_health) + " health remaining.");
+        say("The " + monster_name + " has " +
+            health_value_text(std::max(monster_health, 0), monster_max_health) + " health remaining.");
     }
 }
 
@@ -631,7 +743,7 @@ bool sell_scraps(Player& player) {
             int worth = random_int(5, 10);
             player.money += worth;
             sold_anything = true;
-            say("\nYou sold a(n) " + item + " for $" + std::to_string(worth) + ".");
+            say("\nYou sold a(n) " + term::bright_green(item) + " for " + money_text(worth) + ".");
         } else {
             remaining.push_back(item);
         }
@@ -658,8 +770,7 @@ bool offer_potions(Player& player) {
         }
 
         std::ostringstream subtitle;
-        subtitle << "Health: " << stat_meter(player.health, player.health_max) << " "
-                 << player.health << "/" << player.health_max;
+        subtitle << "Health: " << health_text(player.health, player.health_max);
         std::string choice = choose_menu("Potion Menu", {
             {"1", "Drink Big Health Potion", "big", "restore to full", {"big", "big potion", "full"}, big_count > 0, big_count ? "x" + std::to_string(big_count) : "none"},
             {"2", "Drink Small Health Potion", "small", "+15 health", {"small", "small potion"}, small_count > 0, small_count ? "x" + std::to_string(small_count) : "none"},
@@ -693,7 +804,7 @@ std::string price_status(const Player& player, int price, bool unavailable = fal
         return unavailable_label;
     }
     if (player.money < price) {
-        return "need $" + std::to_string(price - player.money) + " more";
+        return "need " + money_text(price - player.money) + " more";
     }
     return "";
 }
@@ -710,8 +821,8 @@ void buy_spell(Player& player, std::unordered_map<std::string, bool>& stock, con
     player.money -= price;
     add_spell(player, spell_name);
     stock[spell_name] = false;
-    say("\nYou learned " + spell_name + ".");
-    say("You have $" + std::to_string(player.money) + " left.");
+    say("\nYou learned " + term::magenta(spell_name) + ".");
+    say("You have " + money_text(player.money) + " left.");
 }
 
 void buy_item(Player& player, const std::string& item_name, int price) {
@@ -721,8 +832,8 @@ void buy_item(Player& player, const std::string& item_name, int price) {
     }
     player.money -= price;
     player.backpack.push_back(item_name);
-    say("\nYou bought a " + item_name + ".");
-    say("You have $" + std::to_string(player.money) + " left.");
+    say("\nYou bought a " + term::bright_green(item_name) + ".");
+    say("You have " + money_text(player.money) + " left.");
 }
 
 void buy_equipment(Player& player, std::unordered_map<std::string, bool>& stock, const std::string& item_name, int price, const std::string& stat_name, int amount) {
@@ -742,13 +853,13 @@ void buy_equipment(Player& player, std::unordered_map<std::string, bool>& stock,
     }
     player.backpack.push_back(item_name);
     stock[item_name] = false;
-    say("\nYou bought " + item_name + ".");
-    say("You have $" + std::to_string(player.money) + " left.");
+    say("\nYou bought " + term::bright_green(item_name) + ".");
+    say("You have " + money_text(player.money) + " left.");
 }
 
 void buy_mana(Player& player) {
     while (true) {
-        std::string amount_text = normalize_choice(ask("\nMana to buy ($1 each, 'all' for max, or 'back'): "));
+        std::string amount_text = normalize_choice(ask("\nMana to buy (" + money_text(1) + " each, 'all' for max, or 'back'): "));
         int amount = 0;
         if (amount_text == "back" || amount_text == "b" || amount_text == "cancel" || amount_text == "leave" || amount_text == "q") {
             say("\nYou decide not to buy mana.");
@@ -784,8 +895,8 @@ void buy_mana(Player& player) {
         player.money -= amount;
         player.mana += amount;
         player.mana_max += amount;
-        say("\nYou bought " + std::to_string(amount) + " mana.");
-        say("You have $" + std::to_string(player.money) + " left.");
+        say("\nYou bought " + term::blue(std::to_string(amount)) + " mana.");
+        say("You have " + money_text(player.money) + " left.");
         return;
     }
 }
@@ -795,26 +906,26 @@ void run_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool
 
     while (true) {
         std::vector<MenuOption> options = {
-            {"1", "Arcane Blast", "arcane", "$20 - " + spells().at("Arcane Blast").description, {"arcane", "arcane blast", "spell 1"}, stock["Arcane Blast"], price_status(player, 20, !stock["Arcane Blast"], "learned")},
-            {"2", "Small Health Potion", "small_potion", "$15 - heals 15 health", {"small", "small potion", "health potion", "potion"}, true, price_status(player, 15)},
-            {"3", "Thunderstorm", "thunderstorm", "$40 - " + spells().at("Thunderstorm").description, {"thunder", "thunderstorm", "spell 3"}, stock["Thunderstorm"], price_status(player, 40, !stock["Thunderstorm"], "learned")},
-            {"4", "Restoration Incantation", "restoration", "$30 - " + spells().at("Restoration Incantation").description, {"restore", "restoration", "heal spell", "spell 4"}, stock["Restoration Incantation"], price_status(player, 30, !stock["Restoration Incantation"], "learned")},
-            {"5", "Add Mana", "mana", "$1 = +1 max mana", {"mana", "add mana", "buy mana"}, true, player.money ? "spend any amount" : "no money"},
+            {"1", "Arcane Blast", "arcane", money_text(20) + " - " + spells().at("Arcane Blast").description, {"arcane", "arcane blast", "spell 1"}, stock["Arcane Blast"], price_status(player, 20, !stock["Arcane Blast"], "learned")},
+            {"2", "Small Health Potion", "small_potion", money_text(15) + " - heals 15 health", {"small", "small potion", "health potion", "potion"}, true, price_status(player, 15)},
+            {"3", "Thunderstorm", "thunderstorm", money_text(40) + " - " + spells().at("Thunderstorm").description, {"thunder", "thunderstorm", "spell 3"}, stock["Thunderstorm"], price_status(player, 40, !stock["Thunderstorm"], "learned")},
+            {"4", "Restoration Incantation", "restoration", money_text(30) + " - " + spells().at("Restoration Incantation").description, {"restore", "restoration", "heal spell", "spell 4"}, stock["Restoration Incantation"], price_status(player, 30, !stock["Restoration Incantation"], "learned")},
+            {"5", "Add Mana", "mana", money_text(1) + " = +1 max mana", {"mana", "add mana", "buy mana"}, true, player.money ? "spend any amount" : "no money"},
         };
 
         if (advanced) {
-            options.push_back({"6", "Big Health Potion", "big_potion", "$40 - restores full health", {"big", "big potion", "full potion"}, true, price_status(player, 40)});
-            options.push_back({"7", "Glorious Helmet", "helmet", "$50 - +5 armor", {"helmet", "armor"}, stock["Glorious Helmet"], price_status(player, 50, !stock["Glorious Helmet"], "owned")});
-            options.push_back({"8", "Mage Boots", "boots", "$35 - +3 spell damage", {"boots", "mage boots", "damage"}, stock["Mage Boots"], price_status(player, 35, !stock["Mage Boots"], "owned")});
+            options.push_back({"6", "Big Health Potion", "big_potion", money_text(40) + " - restores full health", {"big", "big potion", "full potion"}, true, price_status(player, 40)});
+            options.push_back({"7", "Glorious Helmet", "helmet", money_text(50) + " - +5 armor", {"helmet", "armor"}, stock["Glorious Helmet"], price_status(player, 50, !stock["Glorious Helmet"], "owned")});
+            options.push_back({"8", "Mage Boots", "boots", money_text(35) + " - +3 spell damage", {"boots", "mage boots", "damage"}, stock["Mage Boots"], price_status(player, 35, !stock["Mage Boots"], "owned")});
             options.push_back({"9", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
         } else {
             options.push_back({"6", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
         }
 
         std::ostringstream subtitle;
-        subtitle << "Gold: $" << player.money
-                 << " | Health: " << stat_meter(player.health, player.health_max) << " " << player.health << "/" << player.health_max
-                 << " | Mana: " << stat_meter(player.mana, player.mana_max) << " " << player.mana << "/" << player.mana_max;
+        subtitle << "Gold: " << money_text(player.money)
+                 << " | Health: " << health_text(player.health, player.health_max)
+                 << " | Mana: " << mana_text(player.mana, player.mana_max);
         std::string choice = choose_menu("Shop Menu", options, "Shop choice: ", subtitle.str());
 
         if (choice == "arcane") {
@@ -992,7 +1103,7 @@ void locked_door_scene(Player& player) {
     }
 
     player.money += amount;
-    say("\nYou say Lockio Reducto. The door opens and you find $" + std::to_string(amount) + ".");
+    say("\nYou say Lockio Reducto. The door opens and you find " + money_text(amount) + ".");
     print_stats(player);
 }
 
@@ -1101,7 +1212,7 @@ void twin_doors_scene(Player& player) {
     spell_fight("ogre", player);
     int amount = random_int(15, 25);
     player.money += amount;
-    say("\nYou find $" + std::to_string(amount) + " in the chest.");
+    say("\nYou find " + money_text(amount) + " in the chest.");
     print_stats(player);
     offer_potions(player);
 }
@@ -1142,7 +1253,7 @@ void run_scene(const std::string& scene_id, Player& player, std::unordered_map<s
 void finish_game(const Player& player) {
     say("\nYou make it through the corridor alive. The road ahead is finally quiet.");
     say("\nAdventure Game is still currently being developed by Thunderstruck7 and Lord Funion. Check back later for more.");
-    std::cout << "\nTHE END\nYou finished with $" << player.money << ".\n";
+    std::cout << "\n" << term::bright_yellow("THE END") << "\nYou finished with " << money_text(player.money) << ".\n";
 }
 
 bool checkpoint_menu(State& state) {
@@ -1245,18 +1356,56 @@ State main_menu_state() {
     }
 }
 
+fs::path executable_directory() {
+#ifdef _WIN32
+    std::vector<char> buffer(MAX_PATH);
+    while (true) {
+        DWORD length = GetModuleFileNameA(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+        if (length == 0) {
+            return {};
+        }
+        if (length < buffer.size() - 1) {
+            return fs::path(std::string(buffer.data(), length)).parent_path();
+        }
+        buffer.resize(buffer.size() * 2);
+    }
+#elif defined(__linux__)
+    std::vector<char> buffer(1024);
+    while (true) {
+        ssize_t length = readlink("/proc/self/exe", buffer.data(), buffer.size());
+        if (length < 0) {
+            return {};
+        }
+        if (static_cast<std::size_t>(length) < buffer.size()) {
+            return fs::path(std::string(buffer.data(), static_cast<std::size_t>(length))).parent_path();
+        }
+        buffer.resize(buffer.size() * 2);
+    }
+#else
+    return {};
+#endif
+}
+
+void use_executable_directory() {
+    fs::path directory = executable_directory();
+    if (!directory.empty()) {
+        fs::current_path(directory);
+    }
+}
+
 void show_logo() {
-    std::cout
-        << "    ___       __                 __\n"
-        << "   /   | ____/ /   _____  ____  / /___  __________\n"
-        << "  / /| |/ __  / | / / _ \\/ __ \\/ __/ / / / ___/ _ \\\n"
-        << " / ___ / /_/ /| |/ /  __/ / / / /_/ /_/ / /  /  __/\n"
-        << "/_/  |_\\__,_/ |___/\\___/_/ /_/\\__/\\__,_/_/   \\___/\n"
-        << "          ______\n"
-        << "         / ____/___ _____ ___  ___\n"
-        << "        / / __/ __ `/ __ `__ \\/ _ \\\n"
-        << "       / /_/ / /_/ / / / / / /  __/\n"
-        << "       \\____/\\__,_/_/ /_/ /_/\\___/\n\n";
+    const std::string logo =
+        "    ___       __                 __\n"
+        "   /   | ____/ /   _____  ____  / /___  __________\n"
+        "  / /| |/ __  / | / / _ \\/ __ \\/ __/ / / / ___/ _ \\\n"
+        " / ___ / /_/ /| |/ /  __/ / / / /_/ /_/ / /  /  __/\n"
+        "/_/  |_\\__,_/ |___/\\___/_/ /_/\\__/\\__,_/_/   \\___/\n"
+        "          ______\n"
+        "         / ____/___ _____ ___  ___\n"
+        "        / / __/ __ `/ __ `__ \\/ _ \\\n"
+        "       / /_/ / /_/ / / / / / /  __/\n"
+        "       \\____/\\__,_/_/ /_/ /_/\\___/\n\n";
+    std::cout << term::bright_yellow(logo);
 }
 
 void run_game() {
@@ -1285,6 +1434,7 @@ void run_game() {
 
 int main() {
     try {
+        use_executable_directory();
         run_game();
     } catch (const std::exception& exc) {
         std::cerr << "\nAdventure Game C++ port error: " << exc.what() << "\n";
