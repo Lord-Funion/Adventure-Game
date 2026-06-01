@@ -114,6 +114,17 @@ struct Spell {
     std::string description;
 };
 
+struct FrogAttack {
+    bool has_damage = false;
+    int damage = 0;
+    bool has_healing = false;
+    int healing = 0;
+    int energy_cost = 0;
+    int burn = 0;
+    int stun = 0;
+    std::string description;
+};
+
 struct Monster {
     int health = 0;
     int damage = 0;
@@ -122,6 +133,7 @@ struct Monster {
 };
 
 struct Player {
+    std::string name = "Adventurer";
     int money = 0;
     int health = 100;
     int health_max = 100;
@@ -130,8 +142,13 @@ struct Player {
     int armor = 0;
     int weapon_damage = 0;
     int extra_damage = 0;
+    bool frog_mode = false;
+    int frog_power = 0;
+    int frog_energy = 25;
+    int frog_energy_max = 25;
     std::vector<std::string> backpack;
     std::vector<std::string> spells;
+    std::vector<std::string> frog_attacks;
 };
 
 struct State {
@@ -316,6 +333,18 @@ const std::unordered_map<std::string, Spell>& spells() {
     return data;
 }
 
+const std::unordered_map<std::string, FrogAttack>& frog_attacks() {
+    static const std::unordered_map<std::string, FrogAttack> data = {
+        {"Tongue Slap", {true, 8, false, 0, 0, 0, 0, "A free snapping smack from a very serious frog."}},
+        {"Bubble Burp", {true, 14, false, 0, 6, 2, 0, "Deals 14 damage and leaves the target covered in fizzy bubbles."}},
+        {"Royal Croak", {true, 0, false, 0, 8, 0, 2, "A royal croak that stuns an enemy for 2 turns."}},
+        {"Snack Break", {false, 0, true, 20, 7, 0, 0, "The frog shares emergency snacks and heals 20 health."}},
+        {"Moon Leap", {true, 22, false, 0, 12, 0, 1, "Deals 22 damage and lands with a stunning moonlit bounce."}},
+        {"Dragonfly Dive", {true, 30, false, 0, 16, 2, 0, "Deals 30 damage with a fiery dive after an imaginary dragonfly."}},
+    };
+    return data;
+}
+
 const std::unordered_map<std::string, Monster>& monsters() {
     static const std::unordered_map<std::string, Monster> data = {
         {"goblin", {20, 5, 10, {"punch", "screech", "headbutt"}}},
@@ -380,6 +409,13 @@ std::unordered_map<std::string, bool> create_shop_stock() {
         {"Phoenix Feather", true},
         {"Dragon Scale Shield", true},
         {"Star Cloak", true},
+        {"Croak Fu Primer", true},
+        {"Bubble Burp Codex", true},
+        {"Royal Croak Sheet Music", true},
+        {"Snack Break Cookbook", true},
+        {"Moon Leap Manual", true},
+        {"Golden Fly Protein", true},
+        {"Dragonfly Tactics", true},
     };
 }
 
@@ -433,6 +469,26 @@ void add_spell(Player& player, const std::string& spell_name) {
     }
 }
 
+void add_frog_attack(Player& player, const std::string& attack_name) {
+    if (std::find(player.frog_attacks.begin(), player.frog_attacks.end(), attack_name) == player.frog_attacks.end()) {
+        player.frog_attacks.push_back(attack_name);
+    }
+}
+
+void activate_frog_partner(Player& player) {
+    player.frog_mode = true;
+    if (!has_item(player, "Magical Chocolate Frog")) {
+        player.backpack.push_back("Magical Chocolate Frog");
+    }
+    if (player.frog_energy_max <= 0) {
+        player.frog_energy_max = 25;
+    }
+    if (player.frog_energy <= 0) {
+        player.frog_energy = player.frog_energy_max;
+    }
+    add_frog_attack(player, "Tongue Slap");
+}
+
 int count_item(const Player& player, const std::string& item) {
     return static_cast<int>(std::count(player.backpack.begin(), player.backpack.end(), item));
 }
@@ -445,6 +501,14 @@ void print_stats(const Player& player) {
     std::cout << "Armor: " << term::bright_cyan(std::to_string(player.armor)) << "\n";
     std::cout << "Weapon Damage: " << term::bright_yellow("+" + std::to_string(player.weapon_damage)) << "\n";
     std::cout << "Spell Damage: " << term::bright_magenta("+" + std::to_string(player.extra_damage)) << "\n";
+    if (player.frog_mode) {
+        std::cout << "Frog Energy: "
+                  << term::bright_green(stat_meter(player.frog_energy, player.frog_energy_max) + " " +
+                                        std::to_string(player.frog_energy) + "/" +
+                                        std::to_string(player.frog_energy_max))
+                  << "\n";
+        std::cout << "Frog Power: " << term::bright_green("+" + std::to_string(player.frog_power)) << "\n";
+    }
 
     std::cout << "Spells: ";
     if (player.spells.empty()) {
@@ -458,6 +522,22 @@ void print_stats(const Player& player) {
             spell_list << player.spells[i];
         }
         std::cout << term::magenta(spell_list.str()) << "\n";
+    }
+
+    if (player.frog_mode) {
+        std::cout << "Frog Attacks: ";
+        if (player.frog_attacks.empty()) {
+            std::cout << term::bright_green("None") << "\n";
+        } else {
+            std::ostringstream attack_list;
+            for (std::size_t i = 0; i < player.frog_attacks.size(); ++i) {
+                if (i) {
+                    attack_list << ", ";
+                }
+                attack_list << player.frog_attacks[i];
+            }
+            std::cout << term::bright_green(attack_list.str()) << "\n";
+        }
     }
 
     std::cout << "Items: ";
@@ -631,6 +711,33 @@ std::string spell_detail(const Player& player, const Spell& spell) {
     return out.str();
 }
 
+std::string frog_attack_detail(const Player& player, const FrogAttack& attack) {
+    std::vector<std::string> parts;
+    if (attack.has_damage) {
+        int damage = attack.damage + player.frog_power;
+        parts.push_back(damage ? std::to_string(damage) + " damage" : "control");
+    }
+    if (attack.has_healing) {
+        parts.push_back("heal " + std::to_string(attack.healing));
+    }
+    if (attack.burn) {
+        parts.push_back("bubble burn");
+    }
+    if (attack.stun) {
+        parts.push_back("stun " + std::to_string(attack.stun) + " turns");
+    }
+    parts.push_back(std::to_string(attack.energy_cost) + " frog energy");
+
+    std::ostringstream out;
+    for (std::size_t i = 0; i < parts.size(); ++i) {
+        if (i) {
+            out << ", ";
+        }
+        out << parts[i];
+    }
+    return out.str();
+}
+
 std::string choose_combat_action(const std::string& monster_name, int monster_health, int monster_max_health, const Player& player) {
     std::ostringstream subtitle;
     int basic_attack_damage = basic_damage(player);
@@ -677,6 +784,44 @@ std::string choose_combat_action(const std::string& monster_name, int monster_he
     return choose_menu("Combat", options, "Action: ", subtitle.str(), "Choose an action by number or name.");
 }
 
+std::string choose_frog_action(const std::string& monster_name, int monster_health, int monster_max_health, const Player& player) {
+    std::ostringstream subtitle;
+    subtitle << "You: " << health_text(player.health, player.health_max)
+             << " | Frog Energy: " << term::bright_green(std::to_string(player.frog_energy) + "/" + std::to_string(player.frog_energy_max))
+             << " | " << scene_title(monster_name) << ": "
+             << health_value_text(std::max(monster_health, 0), monster_max_health);
+
+    std::vector<MenuOption> options;
+    int next_key = 1;
+    for (const std::string& attack_name : player.frog_attacks) {
+        auto attack_found = frog_attacks().find(attack_name);
+        if (attack_found == frog_attacks().end()) {
+            continue;
+        }
+        const FrogAttack& attack = attack_found->second;
+        bool enabled = player.frog_energy >= attack.energy_cost;
+        std::string status;
+        if (!enabled) {
+            status = "need " + std::to_string(attack.energy_cost - player.frog_energy) + " energy";
+        } else if (attack.has_healing && player.health >= player.health_max) {
+            enabled = false;
+            status = "health full";
+        }
+
+        options.push_back({
+            std::to_string(next_key++),
+            attack_name,
+            attack_name,
+            frog_attack_detail(player, attack),
+            {attack_name},
+            enabled,
+            status,
+        });
+    }
+
+    return choose_menu("Frog Battle", options, "Frog command: ", subtitle.str(), "Choose a frog attack by number or name.");
+}
+
 int monster_attack(const std::string& monster_name, const Monster& monster, Player& player) {
     const std::string& attack = random_choice(monster.attacks);
     int damage = std::max(0, monster.damage - player.armor);
@@ -703,11 +848,103 @@ void win_fight(const std::string& monster_name, Player& player) {
     std::string drop = random_choice(loot_drops());
     player.backpack.push_back(drop);
     player.mana = player.mana_max;
+    if (player.frog_mode) {
+        player.frog_energy = player.frog_energy_max;
+    }
     say("You gained " + money_text(reward) + " and found a " + term::bright_green(drop) + ".");
     print_stats(player);
 }
 
+void frog_fight(const std::string& monster_name, Player& player) {
+    if (player.frog_attacks.empty()) {
+        add_frog_attack(player, "Tongue Slap");
+    }
+
+    const Monster& monster = monsters().at(monster_name);
+    int monster_health = monster.health;
+    int monster_max_health = monster.health;
+    int burn_turns = 0;
+    int stun_turns = 0;
+    int poison_ticks = 0;
+
+    say("\nA frog battle starts between you and the " + monster_name + "!");
+    say("The " + monster_name + " has " + term::red(std::to_string(monster_health)) + " health.");
+    say("It does " + term::bright_cyan(std::to_string(monster.damage)) + " damage.");
+
+    while (monster_health > 0 && player.health > 0) {
+        if (poison_ticks > 0) {
+            player.health -= STATUS_DAMAGE;
+            poison_ticks -= 1;
+            say("The poison burns you for " + std::to_string(STATUS_DAMAGE) + " damage. Health: " +
+                health_value_text(player.health, player.health_max));
+            if (player.health <= 0 && !try_combat_revive(player)) {
+                game_over(player);
+            }
+        }
+
+        if (burn_turns > 0) {
+            monster_health -= STATUS_DAMAGE;
+            burn_turns -= 1;
+            say("The " + monster_name + " fizzes for " + std::to_string(STATUS_DAMAGE) + " damage. Health: " +
+                health_value_text(std::max(monster_health, 0), monster_max_health));
+            if (monster_health <= 0) {
+                win_fight(monster_name, player);
+                return;
+            }
+        }
+
+        std::string action = choose_frog_action(monster_name, monster_health, monster_max_health, player);
+        const FrogAttack& attack = frog_attacks().at(action);
+        player.frog_energy -= attack.energy_cost;
+        say("You shout, \"" + action + "!\" The magical frog hops forward.");
+
+        if (attack.has_damage) {
+            int damage = attack.damage + player.frog_power;
+            monster_health -= damage;
+            if (damage) {
+                say("The frog deals " + std::to_string(damage) + " damage.");
+            }
+            if (attack.burn) {
+                burn_turns = std::max(burn_turns, attack.burn);
+                say("The target fizzes for " + std::to_string(burn_turns) + " turns.");
+            }
+            if (attack.stun) {
+                stun_turns = std::max(stun_turns, attack.stun);
+                say("The " + monster_name + " is stunned for " + std::to_string(stun_turns) + " turns.");
+            }
+        } else {
+            int heal_amount = std::max(0, std::min(player.health_max - player.health, attack.healing));
+            player.health += heal_amount;
+            say("The frog shares snacks and heals " + std::to_string(heal_amount) + " health.");
+        }
+
+        if (monster_health <= 0) {
+            win_fight(monster_name, player);
+            return;
+        }
+
+        if (stun_turns > 0) {
+            stun_turns -= 1;
+            say("The " + monster_name + " is stunned and skips its turn.");
+        } else {
+            poison_ticks = std::max(poison_ticks, monster_attack(monster_name, monster, player));
+        }
+
+        if (player.health <= 0 && !try_combat_revive(player)) {
+            game_over(player);
+        }
+
+        say("The " + monster_name + " has " +
+            health_value_text(std::max(monster_health, 0), monster_max_health) + " health remaining.");
+    }
+}
+
 void spell_fight(const std::string& monster_name, Player& player) {
+    if (player.frog_mode) {
+        frog_fight(monster_name, player);
+        return;
+    }
+
     const Monster& monster = monsters().at(monster_name);
     int monster_health = monster.health;
     int monster_max_health = monster.health;
@@ -977,8 +1214,163 @@ void buy_mana(Player& player) {
     }
 }
 
+void buy_frog_attack(Player& player, std::unordered_map<std::string, bool>& stock, const std::string& item_name, int price, const std::string& attack_name) {
+    if (!stock[item_name]) {
+        say("\nThat training book is out of stock.");
+        return;
+    }
+    if (player.money < price) {
+        say("\nYou don't have enough money.");
+        return;
+    }
+    player.money -= price;
+    add_frog_attack(player, attack_name);
+    player.backpack.push_back(item_name);
+    stock[item_name] = false;
+    say("\nThe frog studies " + term::bright_green(item_name) + " and learns " + term::bright_green(attack_name) + ".");
+    say("You have " + money_text(player.money) + " left.");
+}
+
+void buy_frog_training(Player& player, std::unordered_map<std::string, bool>& stock, const std::string& item_name, int price, int power = 0, int energy = 0) {
+    if (!stock[item_name]) {
+        say("\nThat training book is out of stock.");
+        return;
+    }
+    if (player.money < price) {
+        say("\nYou don't have enough money.");
+        return;
+    }
+    player.money -= price;
+    player.frog_power += power;
+    player.frog_energy_max += energy;
+    player.frog_energy = std::min(player.frog_energy_max, player.frog_energy + energy);
+    player.backpack.push_back(item_name);
+    stock[item_name] = false;
+    say("\nThe frog trains with " + term::bright_green(item_name) + ".");
+    if (power) {
+        say("Frog Power increased by " + std::to_string(power) + ".");
+    }
+    if (energy) {
+        say("Max Frog Energy increased by " + std::to_string(energy) + ".");
+    }
+    say("You have " + money_text(player.money) + " left.");
+}
+
+void buy_frog_energy(Player& player) {
+    while (true) {
+        std::string amount_text = normalize_choice(ask("\nFrog energy to buy (" + money_text(1) + " each, 'all' for max, or 'back'): "));
+        int amount = 0;
+        if (amount_text == "back" || amount_text == "b" || amount_text == "cancel" || amount_text == "leave" || amount_text == "q") {
+            say("\nYou decide not to buy frog energy.");
+            return;
+        }
+        if (amount_text == "all" || amount_text == "max") {
+            if (player.money <= 0) {
+                say("\nYou don't have enough money.");
+                return;
+            }
+            amount = player.money;
+        } else {
+            try {
+                std::size_t parsed = 0;
+                amount = std::stoi(amount_text, &parsed);
+                if (parsed != amount_text.size()) {
+                    throw std::invalid_argument("bad number");
+                }
+            } catch (const std::exception&) {
+                say("\nPlease enter a number, 'all', or 'back'.");
+                continue;
+            }
+        }
+
+        if (amount <= 0) {
+            say("\nPlease enter a positive number.");
+            continue;
+        }
+        if (player.money < amount) {
+            say("\nYou don't have enough money.");
+            return;
+        }
+        player.money -= amount;
+        player.frog_energy += amount;
+        player.frog_energy_max += amount;
+        say("\nYou bought " + term::bright_green(std::to_string(amount)) + " frog energy.");
+        say("You have " + money_text(player.money) + " left.");
+        return;
+    }
+}
+
+void run_frog_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool advanced = false, bool legendary = false) {
+    while (true) {
+        std::vector<MenuOption> options = {
+            {"1", "Small Health Potion", "small_potion", money_text(15) + " - heals 15 health", {"small", "small potion", "health potion", "potion"}, true, price_status(player, 15)},
+            {"2", "Croak Fu Primer", "croak_fu", money_text(20) + " - +3 frog power", {"croak", "croak fu", "primer", "training"}, stock["Croak Fu Primer"], price_status(player, 20, !stock["Croak Fu Primer"], "read")},
+            {"3", "Bubble Burp Codex", "bubble_burp", money_text(25) + " - " + frog_attacks().at("Bubble Burp").description, {"bubble", "bubble burp", "codex"}, stock["Bubble Burp Codex"], price_status(player, 25, !stock["Bubble Burp Codex"], "read")},
+            {"4", "Add Frog Energy", "frog_energy", money_text(1) + " = +1 max frog energy", {"energy", "frog energy", "add energy"}, true, player.money ? "spend any amount" : "no money"},
+        };
+
+        if (advanced) {
+            options.push_back({"5", "Big Health Potion", "big_potion", money_text(40) + " - restores full health", {"big", "big potion", "full potion"}, true, price_status(player, 40)});
+            options.push_back({"6", "Royal Croak Sheet Music", "royal_croak", money_text(35) + " - " + frog_attacks().at("Royal Croak").description, {"royal", "royal croak", "sheet music"}, stock["Royal Croak Sheet Music"], price_status(player, 35, !stock["Royal Croak Sheet Music"], "read")});
+            options.push_back({"7", "Snack Break Cookbook", "snack_break", money_text(30) + " - " + frog_attacks().at("Snack Break").description, {"snack", "snack break", "cookbook"}, stock["Snack Break Cookbook"], price_status(player, 30, !stock["Snack Break Cookbook"], "read")});
+            options.push_back({"8", "Moon Leap Manual", "moon_leap", money_text(45) + " - " + frog_attacks().at("Moon Leap").description, {"moon", "moon leap", "manual"}, stock["Moon Leap Manual"], price_status(player, 45, !stock["Moon Leap Manual"], "read")});
+            options.push_back({"9", "Golden Fly Protein", "golden_fly", money_text(50) + " - +5 frog power, +5 max frog energy", {"golden", "fly", "protein"}, stock["Golden Fly Protein"], price_status(player, 50, !stock["Golden Fly Protein"], "used")});
+            if (legendary) {
+                options.push_back({"10", "Dragonfly Tactics", "dragonfly_dive", money_text(60) + " - " + frog_attacks().at("Dragonfly Dive").description, {"dragonfly", "dragonfly dive", "tactics"}, stock["Dragonfly Tactics"], price_status(player, 60, !stock["Dragonfly Tactics"], "read")});
+                options.push_back({"11", "Phoenix Feather", "phoenix_feather", money_text(55) + " - revives you once in combat", {"phoenix", "feather", "revive"}, stock["Phoenix Feather"], price_status(player, 55, !stock["Phoenix Feather"], "owned")});
+                options.push_back({"12", "Dragon Scale Shield", "dragon_shield", money_text(70) + " - +8 armor", {"shield", "dragon shield", "dragon scale"}, stock["Dragon Scale Shield"], price_status(player, 70, !stock["Dragon Scale Shield"], "owned")});
+                options.push_back({"13", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+            } else {
+                options.push_back({"10", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+            }
+        } else {
+            options.push_back({"5", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+        }
+
+        std::ostringstream subtitle;
+        subtitle << "Gold: " << money_text(player.money)
+                 << " | Health: " << health_text(player.health, player.health_max)
+                 << " | Frog Energy: " << term::bright_green(stat_meter(player.frog_energy, player.frog_energy_max) + " " + std::to_string(player.frog_energy) + "/" + std::to_string(player.frog_energy_max));
+        std::string choice = choose_menu("Frog Training Shop", options, "Shop choice: ", subtitle.str());
+
+        if (choice == "small_potion") {
+            buy_item(player, "Small Health Potion", 15);
+        } else if (choice == "croak_fu") {
+            buy_frog_training(player, stock, "Croak Fu Primer", 20, 3, 0);
+        } else if (choice == "bubble_burp") {
+            buy_frog_attack(player, stock, "Bubble Burp Codex", 25, "Bubble Burp");
+        } else if (choice == "frog_energy") {
+            buy_frog_energy(player);
+        } else if (choice == "big_potion") {
+            buy_item(player, "Big Health Potion", 40);
+        } else if (choice == "royal_croak") {
+            buy_frog_attack(player, stock, "Royal Croak Sheet Music", 35, "Royal Croak");
+        } else if (choice == "snack_break") {
+            buy_frog_attack(player, stock, "Snack Break Cookbook", 30, "Snack Break");
+        } else if (choice == "moon_leap") {
+            buy_frog_attack(player, stock, "Moon Leap Manual", 45, "Moon Leap");
+        } else if (choice == "golden_fly") {
+            buy_frog_training(player, stock, "Golden Fly Protein", 50, 5, 5);
+        } else if (choice == "dragonfly_dive") {
+            buy_frog_attack(player, stock, "Dragonfly Tactics", 60, "Dragonfly Dive");
+        } else if (choice == "phoenix_feather") {
+            buy_stocked_item(player, stock, "Phoenix Feather", 55);
+        } else if (choice == "dragon_shield") {
+            buy_equipment(player, stock, "Dragon Scale Shield", 70, "armor", 8);
+        } else if (choice == "leave") {
+            say("\nYou leave the store.");
+            print_stats(player);
+            return;
+        }
+    }
+}
+
 void run_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool advanced = false, bool legendary = false) {
     sell_scraps(player);
+    if (player.frog_mode) {
+        run_frog_shop(player, stock, advanced, legendary);
+        return;
+    }
 
     while (true) {
         std::vector<MenuOption> options = {
@@ -1072,6 +1464,22 @@ std::vector<std::string> read_vector(std::ifstream& in) {
     return values;
 }
 
+void normalize_player(Player& player) {
+    player.name = trim(player.name).empty() ? "Adventurer" : trim(player.name);
+    if (player.frog_energy_max <= 0) {
+        player.frog_energy_max = 25;
+    }
+    if (player.frog_energy <= 0) {
+        player.frog_energy = player.frog_energy_max;
+    }
+    if (!has_item(player, "Magic Wand") && has_item(player, "Magical Chocolate Frog")) {
+        activate_frog_partner(player);
+    }
+    if (player.frog_mode && player.frog_attacks.empty()) {
+        add_frog_attack(player, "Tongue Slap");
+    }
+}
+
 void save_state(const State& state, const std::string& path = SAVE_PATH) {
     fs::create_directories(fs::path(path).parent_path());
     std::ofstream out(path);
@@ -1079,12 +1487,15 @@ void save_state(const State& state, const std::string& path = SAVE_PATH) {
         throw std::runtime_error("Could not write save file.");
     }
     const Player& p = state.player;
-    out << "AdventureGameCppSaveV2\n";
+    out << "AdventureGameCppSaveV3\n";
     out << state.next_scene << "\n";
+    out << p.name << "\n";
     out << p.money << "\n" << p.health << "\n" << p.health_max << "\n" << p.mana << "\n"
         << p.mana_max << "\n" << p.armor << "\n" << p.weapon_damage << "\n" << p.extra_damage << "\n";
+    out << (p.frog_mode ? 1 : 0) << "\n" << p.frog_power << "\n" << p.frog_energy << "\n" << p.frog_energy_max << "\n";
     write_vector(out, p.backpack);
     write_vector(out, p.spells);
+    write_vector(out, p.frog_attacks);
     out << state.shop_stock.size() << "\n";
     for (const auto& [item, stocked] : state.shop_stock) {
         out << item << "\n" << (stocked ? 1 : 0) << "\n";
@@ -1099,7 +1510,8 @@ State load_state(const std::string& path = SAVE_PATH) {
     std::string line;
     std::getline(in, line);
     bool version_2 = line == "AdventureGameCppSaveV2";
-    if (line != "AdventureGameCppSaveV1" && !version_2) {
+    bool version_3 = line == "AdventureGameCppSaveV3";
+    if (line != "AdventureGameCppSaveV1" && !version_2 && !version_3) {
         throw std::runtime_error("Save file is not a C++ port save.");
     }
 
@@ -1107,18 +1519,30 @@ State load_state(const std::string& path = SAVE_PATH) {
     state.shop_stock = create_shop_stock();
     std::getline(in, state.next_scene);
     Player& p = state.player;
+    if (version_3) {
+        std::getline(in, p.name);
+    }
     std::getline(in, line); p.money = std::stoi(line);
     std::getline(in, line); p.health = std::stoi(line);
     std::getline(in, line); p.health_max = std::stoi(line);
     std::getline(in, line); p.mana = std::stoi(line);
     std::getline(in, line); p.mana_max = std::stoi(line);
     std::getline(in, line); p.armor = std::stoi(line);
-    if (version_2) {
+    if (version_2 || version_3) {
         std::getline(in, line); p.weapon_damage = std::stoi(line);
     }
     std::getline(in, line); p.extra_damage = std::stoi(line);
+    if (version_3) {
+        std::getline(in, line); p.frog_mode = std::stoi(line) != 0;
+        std::getline(in, line); p.frog_power = std::stoi(line);
+        std::getline(in, line); p.frog_energy = std::stoi(line);
+        std::getline(in, line); p.frog_energy_max = std::stoi(line);
+    }
     p.backpack = read_vector(in);
     p.spells = read_vector(in);
+    if (version_3) {
+        p.frog_attacks = read_vector(in);
+    }
 
     std::getline(in, line);
     int stock_count = std::stoi(line);
@@ -1129,6 +1553,7 @@ State load_state(const std::string& path = SAVE_PATH) {
         std::getline(in, stocked);
         state.shop_stock[item] = stocked == "1";
     }
+    normalize_player(state.player);
     return state;
 }
 
@@ -1166,6 +1591,10 @@ State load_state_interactive() {
 }
 
 void intro_scene(Player& player) {
+    player.name = ask("\nWhat is your adventurer name? ");
+    if (trim(player.name).empty()) {
+        player.name = "Adventurer";
+    }
     say("\nYou are out on a casual stroll when a magical chocolate frog hops around your feet.");
     std::string choice = yes_no("\nDo you pick it up? (yes/no): ");
     if (choice == "yes") {
@@ -1183,12 +1612,17 @@ void wizard_scene(Player& player) {
     say("\"Was that the croak of a chocolate frog?\" he asks.");
     if (yes_no("\nWhat do you say? (yes/no): ") == "no") {
         say("\nHis old hearing must be failing him. He wanders off.");
+        activate_frog_partner(player);
+        say("The frog gives you a tiny nod. It looks ready to fight for itself.");
         return;
     }
 
     say("\nHe smiles. \"I am Rumblerod The Great, the only remaining wizard in the North.\"");
     if (yes_no("\nTrade the frog for his spare magic wand? (yes/no): ") == "no") {
         say("\nRumblerod shrugs and continues down the path.");
+        activate_frog_partner(player);
+        say("The frog hops onto your shoulder and learns Tongue Slap out of spite.");
+        print_stats(player);
         return;
     }
 
@@ -1206,13 +1640,20 @@ void locked_door_scene(Player& player) {
     }
 
     int amount = random_int(20, 30);
-    if (yes_no("\nYou find a locked door. Use the wand and say the words? (yes/no): ") == "no") {
+    std::string choice = player.frog_mode
+        ? yes_no("\nYou find a locked door. Send the frog through the keyhole? (yes/no): ")
+        : yes_no("\nYou find a locked door. Use the wand and say the words? (yes/no): ");
+    if (choice == "no") {
         say("\nA goblin sneaks up behind you and stabs you.");
         game_over(player);
     }
 
     player.money += amount;
-    say("\nYou say Lockio Reducto. The door opens and you find " + money_text(amount) + ".");
+    if (player.frog_mode) {
+        say("\nThe frog squeezes under the door, unlocks it, and looks smug. You find " + money_text(amount) + ".");
+    } else {
+        say("\nYou say Lockio Reducto. The door opens and you find " + money_text(amount) + ".");
+    }
     print_stats(player);
 }
 
@@ -1229,14 +1670,20 @@ void first_goblin_scene(Player& player) {
         {"3", "Dirt Throw", "dirt", "", {"dirt", "throw dirt"}},
     }, "Move: ");
 
-    add_spell(player, "Fireball");
     if (attack == "dirt") {
         say("\nThe dirt blinds the goblin long enough for you to knock it out.");
     } else {
         say("\nYour " + attack + " knocks out the goblin.");
     }
-    say("It drops a page from a spell book.");
-    say("You learned Fireball.");
+    if (player.frog_mode) {
+        add_frog_attack(player, "Bubble Burp");
+        say("It drops a page from a frog-training book.");
+        say("The frog eats half the page and learns Bubble Burp.");
+    } else {
+        add_spell(player, "Fireball");
+        say("It drops a page from a spell book.");
+        say("You learned Fireball.");
+    }
     print_stats(player);
 }
 
@@ -1296,8 +1743,14 @@ void forest_scene(Player& player, std::unordered_map<std::string, bool>& shop_st
 
 void twin_doors_scene(Player& player) {
     say("\nYou find two locked doors at the end of the road.");
-    std::string door = choose_left_or_right("\nDo you use the wand on the left or the right door? ");
-    say("\nYou say Lockio Reducto and the door opens.");
+    std::string door = player.frog_mode
+        ? choose_left_or_right("\nDo you send the frog to the left or the right door? ")
+        : choose_left_or_right("\nDo you use the wand on the left or the right door? ");
+    if (player.frog_mode) {
+        say("\nThe frog shoulder-checks the lock until the door gives up.");
+    } else {
+        say("\nYou say Lockio Reducto and the door opens.");
+    }
 
     if (door == "left") {
         say("\nThe left door leads to a dead end guarded by an ogre.");
@@ -1455,7 +1908,7 @@ void run_scene(const std::string& scene_id, Player& player, std::unordered_map<s
 
 void finish_game(const Player& player) {
     say("\nLord Dreadbiscuit's castle crumbles into a suspiciously buttery pile of crumbs.");
-    say("\nYou beat Adventure Game and saved the realm. The villages are safe, and even Rumblerod admits you did most of the work.");
+    say("\nGood job, " + player.name + ", you have completed the game.");
     say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.");
     std::cout << "\n" << term::bright_yellow("THE END") << "\nYou finished with " << money_text(player.money) << ".\n";
 }
@@ -1509,11 +1962,6 @@ void run_story(State state) {
         }
 
         run_scene(scene_id, state.player, state.shop_stock);
-
-        if (scene_id == "wizard" && !has_item(state.player, "Magic Wand")) {
-            say("\nWithout a magic wand, your adventure ends here. Better luck next time!");
-            return;
-        }
 
         state.next_scene = next_scene(scene_id);
         if (state.next_scene == FINISHED_SCENE) {

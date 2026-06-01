@@ -12,7 +12,7 @@ from . import cloud_saves
 from .combat import GameOver, game_over, spell_fight
 from .logo import show_startup_logo
 from .pacing import ask, say
-from .player import add_spell, create_player, offer_potions, print_stats
+from .player import activate_frog_partner, add_frog_attack, add_spell, create_player, offer_potions, print_stats
 from .save_system import (
     SaveError,
     default_save_path,
@@ -122,6 +122,13 @@ def _create_shop_stock():
         "Phoenix Feather": True,
         "Dragon Scale Shield": True,
         "Star Cloak": True,
+        "Croak Fu Primer": True,
+        "Bubble Burp Codex": True,
+        "Royal Croak Sheet Music": True,
+        "Snack Break Cookbook": True,
+        "Moon Leap Manual": True,
+        "Golden Fly Protein": True,
+        "Dragonfly Tactics": True,
     }
 
 
@@ -156,6 +163,12 @@ def _normalize_string_list(value, name):
     return list(value)
 
 
+def _normalize_bool(value, name):
+    if not isinstance(value, bool):
+        raise SaveError(f"Save field '{name}' is not a valid true/false value.")
+    return value
+
+
 def _normalize_state(raw_state):
     if not isinstance(raw_state, dict):
         raise SaveError("The save does not contain game state.")
@@ -165,10 +178,36 @@ def _normalize_state(raw_state):
         raise SaveError("The save does not contain a valid player.")
 
     player = create_player()
-    for key in ("money", "health", "healthMax", "mana", "manaMax", "armor", "weaponDamage", "extraDamage"):
+    name = raw_player.get("name", player["name"])
+    if not isinstance(name, str):
+        raise SaveError("Save field 'name' is not valid text.")
+    player["name"] = " ".join(name.split()) or "Adventurer"
+
+    for key in (
+        "money",
+        "health",
+        "healthMax",
+        "mana",
+        "manaMax",
+        "armor",
+        "weaponDamage",
+        "extraDamage",
+        "frogPower",
+        "frogEnergy",
+        "frogEnergyMax",
+    ):
         player[key] = _normalize_int(raw_player.get(key, player[key]), key)
+    player["frogMode"] = _normalize_bool(raw_player.get("frogMode", player["frogMode"]), "frogMode")
     player["backpack"] = _normalize_string_list(raw_player.get("backpack", []), "backpack")
     player["spells"] = _normalize_string_list(raw_player.get("spells", []), "spells")
+    player["frogAttacks"] = _normalize_string_list(
+        raw_player.get("frogAttacks", player["frogAttacks"]),
+        "frogAttacks",
+    )
+    if "Magic Wand" not in player["backpack"] and "Magical Chocolate Frog" in player["backpack"]:
+        activate_frog_partner(player)
+    if player["frogMode"] and not player["frogAttacks"]:
+        add_frog_attack(player, "Tongue Slap")
 
     raw_stock = raw_state.get("shop_stock", {})
     if not isinstance(raw_stock, dict):
@@ -630,7 +669,7 @@ def _run_scene(scene_id, player, shop_stock):
 
 def _finish_game(player):
     say("\nLord Dreadbiscuit's castle crumbles into a suspiciously buttery pile of crumbs.", "scene")
-    say("\nYou beat Adventure Game and saved the realm. The villages are safe, and even Rumblerod admits you did most of the work.", "scene")
+    say(f"\nGood job, {player.get('name', 'Adventurer')}, you have completed the game.", "scene")
     say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.", "scene")
     say(f"\nTHE END\nYou finished with {Fore.YELLOW}${player['money']}{Style.RESET_ALL}.", "none")
 
@@ -643,10 +682,6 @@ def _run_story(state):
             return
 
         _run_scene(scene_id, state["player"], state["shop_stock"])
-
-        if scene_id == "wizard" and "Magic Wand" not in state["player"]["backpack"]:
-            say("\nWithout a magic wand, your adventure ends here. Better luck next time!", "scene")
-            return
 
         state["next_scene"] = _next_scene(scene_id)
         if state["next_scene"] == FINISHED_SCENE:
@@ -780,6 +815,8 @@ def _main_menu_state():
 
 def intro_scene(player):
     """The player finds the frog that starts the adventure."""
+    name = ask("\nWhat is your adventurer name? ")
+    player["name"] = " ".join(name.split()) or "Adventurer"
     say("\nYou are out on a casual stroll when a magical chocolate frog hops around your feet.")
 
     choice = yes_no("\nDo you pick it up? (yes/no): ")
@@ -794,19 +831,24 @@ def intro_scene(player):
 
 
 def wizard_scene(player):
-    """Trade the frog for the wand and door spell."""
+    """Trade the frog for the wand, or keep it as a battle companion."""
     say("\nYou bump into an old man with a long white beard.")
     say('"Was that the croak of a chocolate frog?" he asks.', "beat")
 
     choice = yes_no("\nWhat do you say? (yes/no): ")
     if choice == "no":
         say("\nHis old hearing must be failing him. He wanders off.")
+        activate_frog_partner(player)
+        say("The frog gives you a tiny nod. It looks ready to fight for itself.", "beat")
         return
 
     say("\nHe smiles. \"I am Rumblerod The Great, the only remaining wizard in the North.\"")
     trade = yes_no("\nTrade the frog for his spare magic wand? (yes/no): ")
     if trade == "no":
         say("\nRumblerod shrugs and continues down the path.")
+        activate_frog_partner(player)
+        say("The frog hops onto your shoulder and learns Tongue Slap out of spite.", "beat")
+        print_stats(player)
         return
 
     player["backpack"].remove("Magical Chocolate Frog")
@@ -824,13 +866,22 @@ def locked_door_scene(player):
         say("\nYou notice a locked door on the left and decide not to miss it.")
 
     amount = random.randint(20, 30)
-    choice = yes_no("\nYou find a locked door. Use the wand and say the words? (yes/no): ")
+    if player.get("frogMode"):
+        choice = yes_no("\nYou find a locked door. Send the frog through the keyhole? (yes/no): ")
+    else:
+        choice = yes_no("\nYou find a locked door. Use the wand and say the words? (yes/no): ")
     if choice == "no":
         say("\nA goblin sneaks up behind you and stabs you.", "beat")
         game_over(player)
 
     player["money"] += amount
-    say(f"\nYou say Lockio Reducto. The door opens and you find ${amount}.", "beat")
+    if player.get("frogMode"):
+        say(
+            f"\nThe frog squeezes under the door, unlocks it, and looks smug. You find ${amount}.",
+            "beat",
+        )
+    else:
+        say(f"\nYou say Lockio Reducto. The door opens and you find ${amount}.", "beat")
     print_stats(player)
 
 
@@ -851,13 +902,18 @@ def first_goblin_scene(player):
         prompt="Move: ",
     )
 
-    add_spell(player, "Fireball")
     if attack == "dirt":
         say("\nThe dirt blinds the goblin long enough for you to knock it out.")
     else:
         say(f"\nYour {attack} knocks out the goblin.")
-    say("It drops a page from a spell book.", "beat")
-    say("You learned Fireball.")
+    if player.get("frogMode"):
+        add_frog_attack(player, "Bubble Burp")
+        say("It drops a page from a frog-training book.", "beat")
+        say("The frog eats half the page and learns Bubble Burp.")
+    else:
+        add_spell(player, "Fireball")
+        say("It drops a page from a spell book.", "beat")
+        say("You learned Fireball.")
     print_stats(player)
 
 
@@ -916,8 +972,12 @@ def forest_scene(player, shop_stock):
 def twin_doors_scene(player):
     """Handle the left/right door branch and converge back to the main path."""
     say("\nYou find two locked doors at the end of the road.")
-    door = choose_left_or_right("\nDo you use the wand on the left or the right door? ")
-    say("\nYou say Lockio Reducto and the door opens.", "beat")
+    if player.get("frogMode"):
+        door = choose_left_or_right("\nDo you send the frog to the left or the right door? ")
+        say("\nThe frog shoulder-checks the lock until the door gives up.", "beat")
+    else:
+        door = choose_left_or_right("\nDo you use the wand on the left or the right door? ")
+        say("\nYou say Lockio Reducto and the door opens.", "beat")
 
     if door == "left":
         say("\nThe left door leads to a dead end guarded by an ogre.")

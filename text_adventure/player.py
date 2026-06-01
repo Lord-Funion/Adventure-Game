@@ -16,6 +16,7 @@ def create_player():
     health, and enough mana to matter after learning magic.
     """
     return {
+        "name": "Adventurer",
         "money": 0,
         "health": 100,
         "healthMax": 100,
@@ -24,8 +25,13 @@ def create_player():
         "armor": 0,
         "weaponDamage": 0,
         "extraDamage": 0,
+        "frogMode": False,
+        "frogPower": 0,
+        "frogEnergy": 25,
+        "frogEnergyMax": 25,
         "backpack": [],
         "spells": [],
+        "frogAttacks": [],
     }
 
 
@@ -33,6 +39,24 @@ def add_spell(player, spell_name):
     """Teach a spell once; duplicate spell entries make menus confusing."""
     if spell_name not in player["spells"]:
         player["spells"].append(spell_name)
+
+
+def add_frog_attack(player, attack_name):
+    """Teach the magical frog an attack once."""
+    if attack_name not in player["frogAttacks"]:
+        player["frogAttacks"].append(attack_name)
+
+
+def activate_frog_partner(player):
+    """Turn the chocolate frog into the player's battle companion."""
+    player["frogMode"] = True
+    player.setdefault("frogPower", 0)
+    player.setdefault("frogEnergyMax", 25)
+    player.setdefault("frogEnergy", player["frogEnergyMax"])
+    player.setdefault("frogAttacks", [])
+    if "Magical Chocolate Frog" not in player["backpack"]:
+        player["backpack"].append("Magical Chocolate Frog")
+    add_frog_attack(player, "Tongue Slap")
 
 
 def print_stats(player):
@@ -50,9 +74,20 @@ def print_stats(player):
     print(f"Armor: {Fore.LIGHTCYAN_EX}{player['armor']}{Style.RESET_ALL}")
     print(f"Weapon Damage: {Fore.LIGHTYELLOW_EX}+{player.get('weaponDamage', 0)}{Style.RESET_ALL}")
     print(f"Spell Damage: {Fore.LIGHTMAGENTA_EX}+{player['extraDamage']}{Style.RESET_ALL}")
+    if player.get("frogMode"):
+        print(
+            f"Frog Energy: {Fore.LIGHTGREEN_EX}"
+            f"{stat_meter(player.get('frogEnergy', 0), player.get('frogEnergyMax', 25))} "
+            f"{player.get('frogEnergy', 0)}/{player.get('frogEnergyMax', 25)}"
+            f"{Style.RESET_ALL}"
+        )
+        print(f"Frog Power: {Fore.LIGHTGREEN_EX}+{player.get('frogPower', 0)}{Style.RESET_ALL}")
 
     spells = ", ".join(player["spells"]) if player["spells"] else "None"
     print(f"Spells: {Fore.MAGENTA}{spells}{Style.RESET_ALL}")
+    if player.get("frogMode"):
+        frog_attacks = ", ".join(player.get("frogAttacks", [])) or "None"
+        print(f"Frog Attacks: {Fore.LIGHTGREEN_EX}{frog_attacks}{Style.RESET_ALL}")
 
     if player["backpack"]:
         item_counts = Counter(player["backpack"])

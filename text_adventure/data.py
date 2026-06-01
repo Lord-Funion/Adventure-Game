@@ -51,6 +51,44 @@ SPELLS = {
 }
 
 
+FROG_ATTACKS = {
+    "Tongue Slap": {
+        "damage": 8,
+        "energyCost": 0,
+        "description": "A free snapping smack from a very serious frog.",
+    },
+    "Bubble Burp": {
+        "damage": 14,
+        "energyCost": 6,
+        "effects": {"burn": 2},
+        "description": "Deals 14 damage and leaves the target covered in fizzy bubbles.",
+    },
+    "Royal Croak": {
+        "damage": 0,
+        "energyCost": 8,
+        "effects": {"stun": 2},
+        "description": "A royal croak that stuns an enemy for 2 turns.",
+    },
+    "Snack Break": {
+        "healing": 20,
+        "energyCost": 7,
+        "description": "The frog shares emergency snacks and heals 20 health.",
+    },
+    "Moon Leap": {
+        "damage": 22,
+        "energyCost": 12,
+        "effects": {"stun": 1},
+        "description": "Deals 22 damage and lands with a stunning moonlit bounce.",
+    },
+    "Dragonfly Dive": {
+        "damage": 30,
+        "energyCost": 16,
+        "effects": {"burn": 2},
+        "description": "Deals 30 damage with a fiery dive after an imaginary dragonfly.",
+    },
+}
+
+
 MONSTERS = {
     "goblin": {
         "health": 20,

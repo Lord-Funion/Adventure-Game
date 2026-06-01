@@ -1,8 +1,8 @@
 """Shop menus and purchase behavior."""
 
-from .data import SPELLS
+from .data import FROG_ATTACKS, SPELLS
 from .pacing import ask, say
-from .player import add_spell, print_stats, sell_scraps
+from .player import add_frog_attack, add_spell, print_stats, sell_scraps
 from .ui import MenuOption, choose_menu, money_text, normalize_choice, stat_meter
 
 
@@ -111,9 +111,317 @@ def _buy_equipment(player, stock, item_name, price, stat_name, amount):
     say(f"You have ${player['money']} left.", "quick")
 
 
+def _buy_frog_attack(player, stock, item_name, price, attack_name):
+    """Buy a one-time training book that teaches a frog attack."""
+    if not stock.get(item_name, True):
+        say("\nThat training book is out of stock.", "quick")
+        return
+    if player["money"] < price:
+        say("\nYou don't have enough money.", "quick")
+        return
+
+    player["money"] -= price
+    add_frog_attack(player, attack_name)
+    player["backpack"].append(item_name)
+    stock[item_name] = False
+    say(f"\nThe frog studies {item_name} and learns {attack_name}.")
+    say(f"You have ${player['money']} left.", "quick")
+
+
+def _buy_frog_training(player, stock, item_name, price, power=0, energy=0):
+    """Buy a one-time frog stat upgrade."""
+    if not stock.get(item_name, True):
+        say("\nThat training book is out of stock.", "quick")
+        return
+    if player["money"] < price:
+        say("\nYou don't have enough money.", "quick")
+        return
+
+    player["money"] -= price
+    player["frogPower"] += power
+    player["frogEnergyMax"] += energy
+    player["frogEnergy"] = min(player["frogEnergyMax"], player.get("frogEnergy", 0) + energy)
+    player["backpack"].append(item_name)
+    stock[item_name] = False
+    say(f"\nThe frog trains with {item_name}.")
+    if power:
+        say(f"Frog Power increased by {power}.", "quick")
+    if energy:
+        say(f"Max Frog Energy increased by {energy}.", "quick")
+    say(f"You have ${player['money']} left.", "quick")
+
+
+def _buy_frog_energy(player):
+    """Let the player permanently increase maximum frog energy."""
+    while True:
+        amount_text = normalize_choice(
+            ask("\nFrog energy to buy ($1 each, 'all' for max, or 'back'): ")
+        )
+        if amount_text in {"back", "b", "cancel", "leave", "q"}:
+            say("\nYou decide not to buy frog energy.", "quick")
+            return
+        if amount_text in {"all", "max"}:
+            if player["money"] <= 0:
+                say("\nYou don't have enough money.", "quick")
+                return
+            amount = player["money"]
+        elif amount_text.isdigit():
+            amount = int(amount_text)
+        else:
+            say("\nPlease enter a number, 'all', or 'back'.", "quick")
+            continue
+
+        if amount <= 0:
+            say("\nPlease enter a positive number.", "quick")
+            continue
+        if player["money"] < amount:
+            say("\nYou don't have enough money.", "quick")
+            return
+
+        player["money"] -= amount
+        player["frogEnergy"] += amount
+        player["frogEnergyMax"] += amount
+        say(f"\nYou bought {amount} frog energy.")
+        say(f"You have ${player['money']} left.", "quick")
+        return
+
+
+def _run_frog_shop(player, stock, advanced=False, legendary=False):
+    """Run the frog-trainer version of the shop menu."""
+    while True:
+        options = [
+            MenuOption(
+                "1",
+                "Small Health Potion",
+                "small_potion",
+                f"{money_text(15)} - heals 15 health",
+                aliases=("small", "small potion", "health potion", "potion"),
+                status=_price_status(player, 15),
+            ),
+            MenuOption(
+                "2",
+                "Croak Fu Primer",
+                "croak_fu",
+                f"{money_text(20)} - +3 frog power",
+                aliases=("croak", "croak fu", "primer", "training"),
+                enabled=stock.get("Croak Fu Primer", True),
+                status=_price_status(
+                    player,
+                    20,
+                    not stock.get("Croak Fu Primer", True),
+                    "read",
+                ),
+            ),
+            MenuOption(
+                "3",
+                "Bubble Burp Codex",
+                "bubble_burp",
+                f"{money_text(25)} - {FROG_ATTACKS['Bubble Burp']['description']}",
+                aliases=("bubble", "bubble burp", "codex"),
+                enabled=stock.get("Bubble Burp Codex", True),
+                status=_price_status(
+                    player,
+                    25,
+                    not stock.get("Bubble Burp Codex", True),
+                    "read",
+                ),
+            ),
+            MenuOption(
+                "4",
+                "Add Frog Energy",
+                "frog_energy",
+                f"{money_text(1)} = +1 max frog energy",
+                aliases=("energy", "frog energy", "add energy"),
+                status="spend any amount" if player["money"] else "no money",
+            ),
+        ]
+
+        if advanced:
+            options.extend(
+                [
+                    MenuOption(
+                        "5",
+                        "Big Health Potion",
+                        "big_potion",
+                        f"{money_text(40)} - restores full health",
+                        aliases=("big", "big potion", "full potion"),
+                        status=_price_status(player, 40),
+                    ),
+                    MenuOption(
+                        "6",
+                        "Royal Croak Sheet Music",
+                        "royal_croak",
+                        f"{money_text(35)} - {FROG_ATTACKS['Royal Croak']['description']}",
+                        aliases=("royal", "royal croak", "sheet music"),
+                        enabled=stock.get("Royal Croak Sheet Music", True),
+                        status=_price_status(
+                            player,
+                            35,
+                            not stock.get("Royal Croak Sheet Music", True),
+                            "read",
+                        ),
+                    ),
+                    MenuOption(
+                        "7",
+                        "Snack Break Cookbook",
+                        "snack_break",
+                        f"{money_text(30)} - {FROG_ATTACKS['Snack Break']['description']}",
+                        aliases=("snack", "snack break", "cookbook"),
+                        enabled=stock.get("Snack Break Cookbook", True),
+                        status=_price_status(
+                            player,
+                            30,
+                            not stock.get("Snack Break Cookbook", True),
+                            "read",
+                        ),
+                    ),
+                    MenuOption(
+                        "8",
+                        "Moon Leap Manual",
+                        "moon_leap",
+                        f"{money_text(45)} - {FROG_ATTACKS['Moon Leap']['description']}",
+                        aliases=("moon", "moon leap", "manual"),
+                        enabled=stock.get("Moon Leap Manual", True),
+                        status=_price_status(
+                            player,
+                            45,
+                            not stock.get("Moon Leap Manual", True),
+                            "read",
+                        ),
+                    ),
+                    MenuOption(
+                        "9",
+                        "Golden Fly Protein",
+                        "golden_fly",
+                        f"{money_text(50)} - +5 frog power, +5 max frog energy",
+                        aliases=("golden", "fly", "protein"),
+                        enabled=stock.get("Golden Fly Protein", True),
+                        status=_price_status(
+                            player,
+                            50,
+                            not stock.get("Golden Fly Protein", True),
+                            "used",
+                        ),
+                    ),
+                ]
+            )
+            if legendary:
+                options.extend(
+                    [
+                        MenuOption(
+                            "10",
+                            "Dragonfly Tactics",
+                            "dragonfly_dive",
+                            f"{money_text(60)} - {FROG_ATTACKS['Dragonfly Dive']['description']}",
+                            aliases=("dragonfly", "dragonfly dive", "tactics"),
+                            enabled=stock.get("Dragonfly Tactics", True),
+                            status=_price_status(
+                                player,
+                                60,
+                                not stock.get("Dragonfly Tactics", True),
+                                "read",
+                            ),
+                        ),
+                        MenuOption(
+                            "11",
+                            "Phoenix Feather",
+                            "phoenix_feather",
+                            f"{money_text(55)} - revives you once in combat",
+                            aliases=("phoenix", "feather", "revive"),
+                            enabled=stock.get("Phoenix Feather", True),
+                            status=_price_status(
+                                player,
+                                55,
+                                not stock.get("Phoenix Feather", True),
+                                "owned",
+                            ),
+                        ),
+                        MenuOption(
+                            "12",
+                            "Dragon Scale Shield",
+                            "dragon_shield",
+                            f"{money_text(70)} - +8 armor",
+                            aliases=("shield", "dragon shield", "dragon scale"),
+                            enabled=stock.get("Dragon Scale Shield", True),
+                            status=_price_status(
+                                player,
+                                70,
+                                not stock.get("Dragon Scale Shield", True),
+                                "owned",
+                            ),
+                        ),
+                        MenuOption(
+                            "13",
+                            "Leave store",
+                            "leave",
+                            aliases=("leave", "exit", "back", "q"),
+                        ),
+                    ]
+                )
+            else:
+                options.append(
+                    MenuOption(
+                        "10",
+                        "Leave store",
+                        "leave",
+                        aliases=("leave", "exit", "back", "q"),
+                    )
+                )
+        else:
+            options.append(
+                MenuOption(
+                    "5",
+                    "Leave store",
+                    "leave",
+                    aliases=("leave", "exit", "back", "q"),
+                )
+            )
+
+        subtitle = (
+            f"Gold: {money_text(player['money'])} | "
+            f"Health: {stat_meter(player['health'], player['healthMax'])} "
+            f"{player['health']}/{player['healthMax']} | "
+            f"Frog Energy: {stat_meter(player['frogEnergy'], player['frogEnergyMax'])} "
+            f"{player['frogEnergy']}/{player['frogEnergyMax']}"
+        )
+        choice = choose_menu("Frog Training Shop", options, prompt="Shop choice: ", subtitle=subtitle)
+
+        if choice == "small_potion":
+            _buy_item(player, "Small Health Potion", 15)
+        elif choice == "croak_fu":
+            _buy_frog_training(player, stock, "Croak Fu Primer", 20, power=3)
+        elif choice == "bubble_burp":
+            _buy_frog_attack(player, stock, "Bubble Burp Codex", 25, "Bubble Burp")
+        elif choice == "frog_energy":
+            _buy_frog_energy(player)
+        elif choice == "big_potion":
+            _buy_item(player, "Big Health Potion", 40)
+        elif choice == "royal_croak":
+            _buy_frog_attack(player, stock, "Royal Croak Sheet Music", 35, "Royal Croak")
+        elif choice == "snack_break":
+            _buy_frog_attack(player, stock, "Snack Break Cookbook", 30, "Snack Break")
+        elif choice == "moon_leap":
+            _buy_frog_attack(player, stock, "Moon Leap Manual", 45, "Moon Leap")
+        elif choice == "golden_fly":
+            _buy_frog_training(player, stock, "Golden Fly Protein", 50, power=5, energy=5)
+        elif choice == "dragonfly_dive":
+            _buy_frog_attack(player, stock, "Dragonfly Tactics", 60, "Dragonfly Dive")
+        elif choice == "phoenix_feather":
+            _buy_stocked_item(player, stock, "Phoenix Feather", 55)
+        elif choice == "dragon_shield":
+            _buy_equipment(player, stock, "Dragon Scale Shield", 70, "armor", 8)
+        elif choice == "leave":
+            say("\nYou leave the store.", "quick")
+            print_stats(player)
+            return
+
+
 def run_shop(player, stock, advanced=False, legendary=False):
     """Run Harold's or Miss Costalot's shop menu."""
     sell_scraps(player)
+    if player.get("frogMode"):
+        _run_frog_shop(player, stock, advanced=advanced, legendary=legendary)
+        return
 
     while True:
         options = [

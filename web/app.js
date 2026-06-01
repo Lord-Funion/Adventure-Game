@@ -86,6 +86,43 @@
     },
   };
 
+  const FROG_ATTACKS = {
+    "Tongue Slap": {
+      damage: 8,
+      energyCost: 0,
+      description: "A free snapping smack from a very serious frog.",
+    },
+    "Bubble Burp": {
+      damage: 14,
+      energyCost: 6,
+      effects: { burn: 2 },
+      description: "Deals 14 damage and leaves the target covered in fizzy bubbles.",
+    },
+    "Royal Croak": {
+      damage: 0,
+      energyCost: 8,
+      effects: { stun: 2 },
+      description: "A royal croak that stuns an enemy for 2 turns.",
+    },
+    "Snack Break": {
+      healing: 20,
+      energyCost: 7,
+      description: "The frog shares emergency snacks and heals 20 health.",
+    },
+    "Moon Leap": {
+      damage: 22,
+      energyCost: 12,
+      effects: { stun: 1 },
+      description: "Deals 22 damage and lands with a stunning moonlit bounce.",
+    },
+    "Dragonfly Dive": {
+      damage: 30,
+      energyCost: 16,
+      effects: { burn: 2 },
+      description: "Deals 30 damage with a fiery dive after an imaginary dragonfly.",
+    },
+  };
+
   const MONSTERS = {
     goblin: {
       health: 20,
@@ -477,6 +514,7 @@
 
     createPlayer() {
       return {
+        name: "Adventurer",
         money: 0,
         health: 100,
         healthMax: 100,
@@ -485,8 +523,13 @@
         armor: 0,
         weaponDamage: 0,
         extraDamage: 0,
+        frogMode: false,
+        frogPower: 0,
+        frogEnergy: 25,
+        frogEnergyMax: 25,
         backpack: [],
         spells: [],
+        frogAttacks: [],
       };
     }
 
@@ -494,6 +537,23 @@
       if (!player.spells.includes(spellName)) {
         player.spells.push(spellName);
       }
+    }
+
+    addFrogAttack(player, attackName) {
+      if (!player.frogAttacks.includes(attackName)) {
+        player.frogAttacks.push(attackName);
+      }
+    }
+
+    activateFrogPartner(player) {
+      player.frogMode = true;
+      player.frogPower = player.frogPower || 0;
+      player.frogEnergyMax = player.frogEnergyMax || 25;
+      player.frogEnergy = player.frogEnergy || player.frogEnergyMax;
+      if (!player.backpack.includes("Magical Chocolate Frog")) {
+        player.backpack.push("Magical Chocolate Frog");
+      }
+      this.addFrogAttack(player, "Tongue Slap");
     }
 
     createShopStock() {
@@ -510,6 +570,13 @@
         "Phoenix Feather": true,
         "Dragon Scale Shield": true,
         "Star Cloak": true,
+        "Croak Fu Primer": true,
+        "Bubble Burp Codex": true,
+        "Royal Croak Sheet Music": true,
+        "Snack Break Cookbook": true,
+        "Moon Leap Manual": true,
+        "Golden Fly Protein": true,
+        "Dragonfly Tactics": true,
       };
     }
 
@@ -544,9 +611,23 @@
       this.sayParts(["Armor: ", { text: String(player.armor), className: "cyan" }]);
       this.sayParts(["Weapon Damage: ", { text: `+${player.weaponDamage || 0}`, className: "yellow" }]);
       this.sayParts(["Spell Damage: ", { text: `+${player.extraDamage}`, className: "magenta" }]);
+      if (player.frogMode) {
+        this.sayParts([
+          "Frog Energy: ",
+          {
+            text: `${statMeter(player.frogEnergy, player.frogEnergyMax)} ${player.frogEnergy}/${player.frogEnergyMax}`,
+            className: "green",
+          },
+        ]);
+        this.sayParts(["Frog Power: ", { text: `+${player.frogPower || 0}`, className: "green" }]);
+      }
 
       const spells = player.spells.length ? player.spells.join(", ") : "None";
       this.sayParts(["Spells: ", { text: spells, className: "magenta" }]);
+      if (player.frogMode) {
+        const frogAttacks = player.frogAttacks.length ? player.frogAttacks.join(", ") : "None";
+        this.sayParts(["Frog Attacks: ", { text: frogAttacks, className: "green" }]);
+      }
 
       if (player.backpack.length) {
         const counts = new Map();
@@ -670,20 +751,49 @@
       }
 
       const player = this.createPlayer();
-      for (const key of ["money", "health", "healthMax", "mana", "manaMax", "armor", "weaponDamage", "extraDamage"]) {
+      const rawName = rawPlayer.name ?? player.name;
+      if (typeof rawName !== "string") {
+        throw new Error("Save field 'name' is not valid text.");
+      }
+      player.name = cleanInput(rawName) || "Adventurer";
+
+      for (const key of [
+        "money",
+        "health",
+        "healthMax",
+        "mana",
+        "manaMax",
+        "armor",
+        "weaponDamage",
+        "extraDamage",
+        "frogPower",
+        "frogEnergy",
+        "frogEnergyMax",
+      ]) {
         const value = rawPlayer[key] ?? player[key];
         if (!Number.isInteger(value)) {
           throw new Error(`Save field '${key}' is not a valid number.`);
         }
         player[key] = value;
       }
+      const frogMode = rawPlayer.frogMode ?? player.frogMode;
+      if (typeof frogMode !== "boolean") {
+        throw new Error("Save field 'frogMode' is not a valid true/false value.");
+      }
+      player.frogMode = frogMode;
 
-      for (const key of ["backpack", "spells"]) {
+      for (const key of ["backpack", "spells", "frogAttacks"]) {
         const value = rawPlayer[key] ?? [];
         if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
           throw new Error(`Save field '${key}' is not a valid list.`);
         }
         player[key] = [...value];
+      }
+      if (!player.backpack.includes("Magic Wand") && player.backpack.includes("Magical Chocolate Frog")) {
+        this.activateFrogPartner(player);
+      }
+      if (player.frogMode && !player.frogAttacks.length) {
+        this.addFrogAttack(player, "Tongue Slap");
       }
 
       const shopStock = this.createShopStock();
@@ -1308,11 +1418,6 @@
 
         await this.runScene(sceneId, state.player, state.shop_stock);
 
-        if (sceneId === "wizard" && !state.player.backpack.includes("Magic Wand")) {
-          this.say("\nWithout a magic wand, your adventure ends here. Better luck next time!");
-          return;
-        }
-
         state.next_scene = this.nextScene(sceneId);
         if (state.next_scene === FINISHED_SCENE) {
           this.finishGame(state.player);
@@ -1370,12 +1475,13 @@
 
     finishGame(player) {
       this.say("\nLord Dreadbiscuit's castle crumbles into a suspiciously buttery pile of crumbs.");
-      this.say("\nYou beat Adventure Game and saved the realm. The villages are safe, and even Rumblerod admits you did most of the work.");
+      this.say(`\nGood job, ${player.name || "Adventurer"}, you have completed the game.`);
       this.say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.");
       this.sayParts(["\nTHE END\nYou finished with ", ...this.moneyParts(player.money), "."]);
     }
 
     async introScene(player) {
+      player.name = cleanInput(await this.ask("\nWhat is your adventurer name? ")) || "Adventurer";
       this.say("\nYou are out on a casual stroll when a magical chocolate frog hops around your feet.");
 
       const choice = await this.yesNo("\nDo you pick it up? (yes/no): ");
@@ -1397,6 +1503,8 @@
       const choice = await this.yesNo("\nWhat do you say? (yes/no): ");
       if (choice === "no") {
         this.say("\nHis old hearing must be failing him. He wanders off.");
+        this.activateFrogPartner(player);
+        this.say("The frog gives you a tiny nod. It looks ready to fight for itself.");
         return;
       }
 
@@ -1404,6 +1512,9 @@
       const trade = await this.yesNo("\nTrade the frog for his spare magic wand? (yes/no): ");
       if (trade === "no") {
         this.say("\nRumblerod shrugs and continues down the path.");
+        this.activateFrogPartner(player);
+        this.say("The frog hops onto your shoulder and learns Tongue Slap out of spite.");
+        this.printStats(player);
         return;
       }
 
@@ -1425,14 +1536,20 @@
       }
 
       const amount = randomInt(20, 30);
-      const choice = await this.yesNo("\nYou find a locked door. Use the wand and say the words? (yes/no): ");
+      const choice = player.frogMode
+        ? await this.yesNo("\nYou find a locked door. Send the frog through the keyhole? (yes/no): ")
+        : await this.yesNo("\nYou find a locked door. Use the wand and say the words? (yes/no): ");
       if (choice === "no") {
         this.say("\nA goblin sneaks up behind you and stabs you.");
         this.gameOver(player);
       }
 
       player.money += amount;
-      this.say(`\nYou say Lockio Reducto. The door opens and you find $${amount}.`);
+      if (player.frogMode) {
+        this.say(`\nThe frog squeezes under the door, unlocks it, and looks smug. You find $${amount}.`);
+      } else {
+        this.say(`\nYou say Lockio Reducto. The door opens and you find $${amount}.`);
+      }
       this.printStats(player);
     }
 
@@ -1449,14 +1566,20 @@
         { key: "3", label: "Dirt Throw", value: "dirt", aliases: ["dirt", "throw dirt"] },
       ], { prompt: "Move: " });
 
-      this.addSpell(player, "Fireball");
       if (attack === "dirt") {
         this.say("\nThe dirt blinds the goblin long enough for you to knock it out.");
       } else {
         this.say(`\nYour ${attack} knocks out the goblin.`);
       }
-      this.say("It drops a page from a spell book.");
-      this.say("You learned Fireball.");
+      if (player.frogMode) {
+        this.addFrogAttack(player, "Bubble Burp");
+        this.say("It drops a page from a frog-training book.");
+        this.say("The frog eats half the page and learns Bubble Burp.");
+      } else {
+        this.addSpell(player, "Fireball");
+        this.say("It drops a page from a spell book.");
+        this.say("You learned Fireball.");
+      }
       this.printStats(player);
     }
 
@@ -1517,8 +1640,14 @@
 
     async twinDoorsScene(player) {
       this.say("\nYou find two locked doors at the end of the road.");
-      const door = await this.chooseLeftOrRight("\nDo you use the wand on the left or the right door? ");
-      this.say("\nYou say Lockio Reducto and the door opens.");
+      const door = player.frogMode
+        ? await this.chooseLeftOrRight("\nDo you send the frog to the left or the right door? ")
+        : await this.chooseLeftOrRight("\nDo you use the wand on the left or the right door? ");
+      if (player.frogMode) {
+        this.say("\nThe frog shoulder-checks the lock until the door gives up.");
+      } else {
+        this.say("\nYou say Lockio Reducto and the door opens.");
+      }
 
       if (door === "left") {
         this.say("\nThe left door leads to a dead end guarded by an ogre.");
@@ -1750,6 +1879,26 @@
       return parts.join(", ");
     }
 
+    frogAttackDetail(player, attack) {
+      const energyCost = attack.energyCost || 0;
+      const parts = [];
+      if (Object.prototype.hasOwnProperty.call(attack, "damage")) {
+        const damage = attack.damage + (player.frogPower || 0);
+        parts.push(damage ? `${damage} damage` : "control");
+      }
+      if (Object.prototype.hasOwnProperty.call(attack, "healing")) {
+        parts.push(`heal ${attack.healing}`);
+      }
+      if (attack.effects?.burn) {
+        parts.push("bubble burn");
+      }
+      if (attack.effects?.stun) {
+        parts.push(`stun ${attack.effects.stun} turns`);
+      }
+      parts.push(`${energyCost} frog energy`);
+      return parts.join(", ");
+    }
+
     basicDamage(player) {
       return BASIC_DAMAGE + (player.weaponDamage || 0);
     }
@@ -1820,6 +1969,47 @@
       });
     }
 
+    async chooseFrogAction(monsterName, monsterHealth, monsterMaxHealth, player) {
+      const subtitle = [
+        "You: ",
+        { text: statMeter(player.health, player.healthMax), className: "red" },
+        ` ${player.health}/${player.healthMax} | Frog Energy: `,
+        { text: `${player.frogEnergy}/${player.frogEnergyMax}`, className: "green" },
+        ` | ${monsterName[0].toUpperCase()}${monsterName.slice(1)}: `,
+        { text: `${Math.max(monsterHealth, 0)}/${monsterMaxHealth}`, className: "red" },
+      ];
+
+      const options = [];
+      for (const [index, attackName] of player.frogAttacks.entries()) {
+        const attack = FROG_ATTACKS[attackName];
+        if (!attack) {
+          continue;
+        }
+        const energyCost = attack.energyCost || 0;
+        let enabled = player.frogEnergy >= energyCost;
+        let status = enabled ? "" : `need ${energyCost - player.frogEnergy} energy`;
+        if (enabled && Object.prototype.hasOwnProperty.call(attack, "healing") && player.health >= player.healthMax) {
+          enabled = false;
+          status = "health full";
+        }
+        options.push({
+          key: String(index + 1),
+          label: attackName,
+          value: attackName,
+          detail: this.frogAttackDetail(player, attack),
+          aliases: [attackName],
+          enabled,
+          status,
+        });
+      }
+
+      return this.chooseMenu("Frog Battle", options, {
+        prompt: "Frog command: ",
+        subtitle,
+        invalid: "Choose a frog attack by number or name.",
+      });
+    }
+
     monsterAttack(monsterName, monster, player) {
       const attack = randomChoice(monster.attacks);
       const damage = Math.max(0, monster.damage - (player.armor || 0));
@@ -1842,6 +2032,11 @@
     }
 
     async spellFight(monsterName, player) {
+      if (player.frogMode) {
+        await this.frogFight(monsterName, player);
+        return;
+      }
+
       const monster = MONSTERS[monsterName];
       let monsterHealth = monster.health;
       const monsterMaxHealth = monster.health;
@@ -1933,6 +2128,93 @@
       }
     }
 
+    async frogFight(monsterName, player) {
+      if (!player.frogAttacks.length) {
+        this.addFrogAttack(player, "Tongue Slap");
+      }
+
+      const monster = MONSTERS[monsterName];
+      let monsterHealth = monster.health;
+      const monsterMaxHealth = monster.health;
+      let burnTurns = 0;
+      let stunTurns = 0;
+      let poisonTicks = 0;
+
+      this.say(`\nA frog battle starts between you and the ${monsterName}!`);
+      this.sayParts([`The ${monsterName} has `, { text: String(monsterHealth), className: "red" }, " health."]);
+      this.sayParts(["It does ", { text: String(monster.damage), className: "cyan" }, " damage."]);
+
+      while (monsterHealth > 0 && player.health > 0) {
+        if (poisonTicks > 0) {
+          player.health -= STATUS_DAMAGE;
+          poisonTicks -= 1;
+          this.say(`The poison burns you for ${STATUS_DAMAGE} damage. Health: ${player.health}/${player.healthMax}`);
+          if (player.health <= 0 && !this.tryCombatRevive(player)) {
+            this.gameOver(player);
+          }
+        }
+
+        if (burnTurns > 0) {
+          monsterHealth -= STATUS_DAMAGE;
+          burnTurns -= 1;
+          this.say(`The ${monsterName} fizzes for ${STATUS_DAMAGE} damage. Health: ${Math.max(monsterHealth, 0)}/${monsterMaxHealth}`);
+          if (monsterHealth <= 0) {
+            this.winFight(monsterName, player);
+            return;
+          }
+        }
+
+        const attackName = await this.chooseFrogAction(monsterName, monsterHealth, monsterMaxHealth, player);
+        const attack = FROG_ATTACKS[attackName];
+        player.frogEnergy -= attack.energyCost || 0;
+        this.say(`You shout, "${attackName}!" The magical frog hops forward.`);
+
+        if (Object.prototype.hasOwnProperty.call(attack, "damage")) {
+          const damage = attack.damage + (player.frogPower || 0);
+          monsterHealth -= damage;
+          if (damage) {
+            this.say(`The frog deals ${damage} damage.`);
+          }
+
+          const effects = attack.effects || {};
+          if (Object.prototype.hasOwnProperty.call(effects, "burn")) {
+            burnTurns = Math.max(burnTurns, effects.burn);
+            this.say(`The target fizzes for ${burnTurns} turns.`);
+          }
+          if (Object.prototype.hasOwnProperty.call(effects, "stun")) {
+            stunTurns = Math.max(stunTurns, effects.stun);
+            this.say(`The ${monsterName} is stunned for ${stunTurns} turns.`);
+          }
+        } else {
+          const healAmount = Math.max(0, Math.min(player.healthMax - player.health, attack.healing));
+          player.health += healAmount;
+          this.say(`The frog shares snacks and heals ${healAmount} health.`);
+        }
+
+        if (monsterHealth <= 0) {
+          this.winFight(monsterName, player);
+          return;
+        }
+
+        if (stunTurns > 0) {
+          stunTurns -= 1;
+          this.say(`The ${monsterName} is stunned and skips its turn.`);
+        } else {
+          poisonTicks = Math.max(poisonTicks, this.monsterAttack(monsterName, monster, player));
+        }
+
+        if (player.health <= 0 && !this.tryCombatRevive(player)) {
+          this.gameOver(player);
+        }
+
+        this.sayParts([
+          `The ${monsterName} has `,
+          { text: `${Math.max(monsterHealth, 0)}/${monsterMaxHealth}`, className: "red" },
+          " health remaining.",
+        ]);
+      }
+    }
+
     winFight(monsterName, player) {
       this.say(`The ${monsterName} has been defeated!`);
       const reward = MONSTERS[monsterName].reward || 10;
@@ -1940,6 +2222,9 @@
       const drop = randomChoice(LOOT_DROPS);
       player.backpack.push(drop);
       player.mana = player.manaMax;
+      if (player.frogMode) {
+        player.frogEnergy = player.frogEnergyMax;
+      }
       this.say(`You gained $${reward} and found a ${drop}.`);
       this.printStats(player);
     }
@@ -2063,8 +2348,279 @@
       this.say(`You have $${player.money} left.`);
     }
 
+    buyFrogAttack(player, stock, itemName, price, attackName) {
+      if (!stock[itemName]) {
+        this.say("\nThat training book is out of stock.");
+        return;
+      }
+      if (player.money < price) {
+        this.say("\nYou don't have enough money.");
+        return;
+      }
+
+      player.money -= price;
+      this.addFrogAttack(player, attackName);
+      player.backpack.push(itemName);
+      stock[itemName] = false;
+      this.say(`\nThe frog studies ${itemName} and learns ${attackName}.`);
+      this.say(`You have $${player.money} left.`);
+    }
+
+    buyFrogTraining(player, stock, itemName, price, config = {}) {
+      if (!stock[itemName]) {
+        this.say("\nThat training book is out of stock.");
+        return;
+      }
+      if (player.money < price) {
+        this.say("\nYou don't have enough money.");
+        return;
+      }
+
+      const power = config.power || 0;
+      const energy = config.energy || 0;
+      player.money -= price;
+      player.frogPower += power;
+      player.frogEnergyMax += energy;
+      player.frogEnergy = Math.min(player.frogEnergyMax, player.frogEnergy + energy);
+      player.backpack.push(itemName);
+      stock[itemName] = false;
+      this.say(`\nThe frog trains with ${itemName}.`);
+      if (power) {
+        this.say(`Frog Power increased by ${power}.`);
+      }
+      if (energy) {
+        this.say(`Max Frog Energy increased by ${energy}.`);
+      }
+      this.say(`You have $${player.money} left.`);
+    }
+
+    async buyFrogEnergy(player) {
+      while (true) {
+        const amountText = normalizeChoice(await this.ask("\nFrog energy to buy ($1 each, 'all' for max, or 'back'): "));
+        let amount;
+        if (["back", "b", "cancel", "leave", "q"].includes(amountText)) {
+          this.say("\nYou decide not to buy frog energy.");
+          return;
+        }
+        if (["all", "max"].includes(amountText)) {
+          if (player.money <= 0) {
+            this.say("\nYou don't have enough money.");
+            return;
+          }
+          amount = player.money;
+        } else if (/^\d+$/.test(amountText)) {
+          amount = Number.parseInt(amountText, 10);
+        } else {
+          this.say("\nPlease enter a number, 'all', or 'back'.");
+          continue;
+        }
+
+        if (amount <= 0) {
+          this.say("\nPlease enter a positive number.");
+          continue;
+        }
+        if (player.money < amount) {
+          this.say("\nYou don't have enough money.");
+          return;
+        }
+
+        player.money -= amount;
+        player.frogEnergy += amount;
+        player.frogEnergyMax += amount;
+        this.say(`\nYou bought ${amount} frog energy.`);
+        this.say(`You have $${player.money} left.`);
+        return;
+      }
+    }
+
+    async runFrogShop(player, stock, advanced = false, legendary = false) {
+      while (true) {
+        const options = [
+          {
+            key: "1",
+            label: "Small Health Potion",
+            value: "small_potion",
+            detail: [...this.moneyParts(15), " - heals 15 health"],
+            aliases: ["small", "small potion", "health potion", "potion"],
+            status: this.priceStatus(player, 15),
+          },
+          {
+            key: "2",
+            label: "Croak Fu Primer",
+            value: "croak_fu",
+            detail: [...this.moneyParts(20), " - +3 frog power"],
+            aliases: ["croak", "croak fu", "primer", "training"],
+            enabled: stock["Croak Fu Primer"],
+            status: this.priceStatus(player, 20, !stock["Croak Fu Primer"], "read"),
+          },
+          {
+            key: "3",
+            label: "Bubble Burp Codex",
+            value: "bubble_burp",
+            detail: [...this.moneyParts(25), ` - ${FROG_ATTACKS["Bubble Burp"].description}`],
+            aliases: ["bubble", "bubble burp", "codex"],
+            enabled: stock["Bubble Burp Codex"],
+            status: this.priceStatus(player, 25, !stock["Bubble Burp Codex"], "read"),
+          },
+          {
+            key: "4",
+            label: "Add Frog Energy",
+            value: "frog_energy",
+            detail: [...this.moneyParts(1), " = +1 max frog energy"],
+            aliases: ["energy", "frog energy", "add energy"],
+            status: player.money ? "spend any amount" : "no money",
+          },
+        ];
+
+        if (advanced) {
+          options.push(
+            {
+              key: "5",
+              label: "Big Health Potion",
+              value: "big_potion",
+              detail: [...this.moneyParts(40), " - restores full health"],
+              aliases: ["big", "big potion", "full potion"],
+              status: this.priceStatus(player, 40),
+            },
+            {
+              key: "6",
+              label: "Royal Croak Sheet Music",
+              value: "royal_croak",
+              detail: [...this.moneyParts(35), ` - ${FROG_ATTACKS["Royal Croak"].description}`],
+              aliases: ["royal", "royal croak", "sheet music"],
+              enabled: stock["Royal Croak Sheet Music"],
+              status: this.priceStatus(player, 35, !stock["Royal Croak Sheet Music"], "read"),
+            },
+            {
+              key: "7",
+              label: "Snack Break Cookbook",
+              value: "snack_break",
+              detail: [...this.moneyParts(30), ` - ${FROG_ATTACKS["Snack Break"].description}`],
+              aliases: ["snack", "snack break", "cookbook"],
+              enabled: stock["Snack Break Cookbook"],
+              status: this.priceStatus(player, 30, !stock["Snack Break Cookbook"], "read"),
+            },
+            {
+              key: "8",
+              label: "Moon Leap Manual",
+              value: "moon_leap",
+              detail: [...this.moneyParts(45), ` - ${FROG_ATTACKS["Moon Leap"].description}`],
+              aliases: ["moon", "moon leap", "manual"],
+              enabled: stock["Moon Leap Manual"],
+              status: this.priceStatus(player, 45, !stock["Moon Leap Manual"], "read"),
+            },
+            {
+              key: "9",
+              label: "Golden Fly Protein",
+              value: "golden_fly",
+              detail: [...this.moneyParts(50), " - +5 frog power, +5 max frog energy"],
+              aliases: ["golden", "fly", "protein"],
+              enabled: stock["Golden Fly Protein"],
+              status: this.priceStatus(player, 50, !stock["Golden Fly Protein"], "used"),
+            },
+          );
+          if (legendary) {
+            options.push(
+              {
+                key: "10",
+                label: "Dragonfly Tactics",
+                value: "dragonfly_dive",
+                detail: [...this.moneyParts(60), ` - ${FROG_ATTACKS["Dragonfly Dive"].description}`],
+                aliases: ["dragonfly", "dragonfly dive", "tactics"],
+                enabled: stock["Dragonfly Tactics"],
+                status: this.priceStatus(player, 60, !stock["Dragonfly Tactics"], "read"),
+              },
+              {
+                key: "11",
+                label: "Phoenix Feather",
+                value: "phoenix_feather",
+                detail: [...this.moneyParts(55), " - revives you once in combat"],
+                aliases: ["phoenix", "feather", "revive"],
+                enabled: stock["Phoenix Feather"],
+                status: this.priceStatus(player, 55, !stock["Phoenix Feather"], "owned"),
+              },
+              {
+                key: "12",
+                label: "Dragon Scale Shield",
+                value: "dragon_shield",
+                detail: [...this.moneyParts(70), " - +8 armor"],
+                aliases: ["shield", "dragon shield", "dragon scale"],
+                enabled: stock["Dragon Scale Shield"],
+                status: this.priceStatus(player, 70, !stock["Dragon Scale Shield"], "owned"),
+              },
+              {
+                key: "13",
+                label: "Leave store",
+                value: "leave",
+                aliases: ["leave", "exit", "back", "q"],
+              },
+            );
+          } else {
+            options.push({
+              key: "10",
+              label: "Leave store",
+              value: "leave",
+              aliases: ["leave", "exit", "back", "q"],
+            });
+          }
+        } else {
+          options.push({
+            key: "5",
+            label: "Leave store",
+            value: "leave",
+            aliases: ["leave", "exit", "back", "q"],
+          });
+        }
+
+        const subtitle = [
+          "Gold: ",
+          ...this.moneyParts(player.money),
+          ` | Health: ${statMeter(player.health, player.healthMax)} ${player.health}/${player.healthMax} | Frog Energy: ${statMeter(player.frogEnergy, player.frogEnergyMax)} ${player.frogEnergy}/${player.frogEnergyMax}`,
+        ];
+
+        const choice = await this.chooseMenu("Frog Training Shop", options, {
+          prompt: "Shop choice: ",
+          subtitle,
+        });
+
+        if (choice === "small_potion") {
+          this.buyItem(player, "Small Health Potion", 15);
+        } else if (choice === "croak_fu") {
+          this.buyFrogTraining(player, stock, "Croak Fu Primer", 20, { power: 3 });
+        } else if (choice === "bubble_burp") {
+          this.buyFrogAttack(player, stock, "Bubble Burp Codex", 25, "Bubble Burp");
+        } else if (choice === "frog_energy") {
+          await this.buyFrogEnergy(player);
+        } else if (choice === "big_potion") {
+          this.buyItem(player, "Big Health Potion", 40);
+        } else if (choice === "royal_croak") {
+          this.buyFrogAttack(player, stock, "Royal Croak Sheet Music", 35, "Royal Croak");
+        } else if (choice === "snack_break") {
+          this.buyFrogAttack(player, stock, "Snack Break Cookbook", 30, "Snack Break");
+        } else if (choice === "moon_leap") {
+          this.buyFrogAttack(player, stock, "Moon Leap Manual", 45, "Moon Leap");
+        } else if (choice === "golden_fly") {
+          this.buyFrogTraining(player, stock, "Golden Fly Protein", 50, { power: 5, energy: 5 });
+        } else if (choice === "dragonfly_dive") {
+          this.buyFrogAttack(player, stock, "Dragonfly Tactics", 60, "Dragonfly Dive");
+        } else if (choice === "phoenix_feather") {
+          this.buyStockedItem(player, stock, "Phoenix Feather", 55);
+        } else if (choice === "dragon_shield") {
+          this.buyEquipment(player, stock, "Dragon Scale Shield", 70, "armor", 8);
+        } else if (choice === "leave") {
+          this.say("\nYou leave the store.");
+          this.printStats(player);
+          return;
+        }
+      }
+    }
+
     async runShop(player, stock, advanced = false, legendary = false) {
       this.sellScraps(player);
+      if (player.frogMode) {
+        await this.runFrogShop(player, stock, advanced, legendary);
+        return;
+      }
 
       while (true) {
         const options = [
