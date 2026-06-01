@@ -11,9 +11,13 @@ add_custom_command(
           "${CMAKE_CURRENT_SOURCE_DIR}/patch_cloud_saves.py"
           "${CMAKE_CURRENT_SOURCE_DIR}/adventure_game.cpp"
           "${GENERATED_ADVENTURE_SOURCE}"
+  COMMAND "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/patch_cpp_cloud_slot_names.py"
+          "${GENERATED_ADVENTURE_SOURCE}"
   DEPENDS
           "${CMAKE_CURRENT_SOURCE_DIR}/adventure_game.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/patch_cloud_saves.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/patch_cpp_cloud_slot_names.py"
   COMMENT "Generating C++ cloud-save source"
   VERBATIM
 )
