@@ -2,7 +2,23 @@ cmake_minimum_required(VERSION 3.16)
 
 project(AdventureGameCpp VERSION 1.0.0 LANGUAGES CXX)
 
-add_executable(adventure-game adventure_game.cpp)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+set(GENERATED_ADVENTURE_SOURCE "${CMAKE_BINARY_DIR}/generated/adventure_game_cloud.cpp")
+add_custom_command(
+  OUTPUT "${GENERATED_ADVENTURE_SOURCE}"
+  COMMAND "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/patch_cloud_saves.py"
+          "${CMAKE_CURRENT_SOURCE_DIR}/adventure_game.cpp"
+          "${GENERATED_ADVENTURE_SOURCE}"
+  DEPENDS
+          "${CMAKE_CURRENT_SOURCE_DIR}/adventure_game.cpp"
+          "${CMAKE_CURRENT_SOURCE_DIR}/patch_cloud_saves.py"
+  COMMENT "Generating C++ cloud-save source"
+  VERBATIM
+)
+
+add_executable(adventure-game "${GENERATED_ADVENTURE_SOURCE}")
 target_compile_features(adventure-game PRIVATE cxx_std_17)
 set_target_properties(adventure-game PROPERTIES OUTPUT_NAME "Adventure-Game")
 
