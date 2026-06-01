@@ -389,7 +389,6 @@
             mode = "menu";
             continue;
           }
-          return;
         }
       }
     }
@@ -589,7 +588,6 @@
       return this.chooseMenu("Game Over", [
         { key: "1", label: "Restart", value: "restart", aliases: ["restart", "r", "new game", "new"] },
         { key: "2", label: "Main Menu", value: "main", aliases: ["main", "menu", "m"] },
-        { key: "3", label: "Quit", value: "quit", aliases: ["quit", "q", "exit"] },
       ], {
         prompt: "Game over choice: ",
       });
@@ -764,7 +762,7 @@
           key: String(options.length + 1),
           label: "Back",
           value: "back",
-          aliases: ["back", "cancel", "q", "quit"],
+          aliases: ["back", "cancel"],
         });
 
         const choice = await this.chooseMenu("Load Game", options, {
@@ -1073,7 +1071,7 @@
         key: String(options.length + 1),
         label: "Back",
         value: "back",
-        aliases: ["back", "cancel", "q", "quit"],
+        aliases: ["back", "cancel"],
       });
 
       const slotName = await this.chooseMenu("Load Cloud Save", options, {
@@ -1129,14 +1127,14 @@
               key: String(nextKey + 2),
               label: "Back",
               value: "back",
-              aliases: ["back", "cancel", "q", "quit"],
+              aliases: ["back", "cancel"],
             },
           ]);
         } else {
           options = [
             { key: "1", label: "Create Account", value: "register", aliases: ["register", "create"] },
             { key: "2", label: "Sign In", value: "login", aliases: ["login", "sign in"] },
-            { key: "3", label: "Back", value: "back", aliases: ["back", "cancel", "q", "quit"] },
+            { key: "3", label: "Back", value: "back", aliases: ["back", "cancel"] },
           ];
         }
 
@@ -1178,7 +1176,6 @@
           { key: "3", label: "Load Game", value: "load", aliases: ["load", "l"] },
           { key: "4", label: "Cloud Saves", value: "cloud", aliases: ["cloud", "online", "sync"] },
           { key: "5", label: "Player Stats", value: "stats", aliases: ["stats", "status"] },
-          { key: "6", label: "Quit", value: "quit", aliases: ["quit", "q", "exit"] },
         ], {
           prompt: "Checkpoint choice: ",
           subtitle,
@@ -1201,9 +1198,6 @@
           }
         } else if (choice === "stats") {
           this.printStats(state.player);
-        } else if (choice === "quit") {
-          this.say("\nProgress is saved in saves/autosave.tasave if autosave succeeded.");
-          return null;
         }
       }
     }
@@ -1214,7 +1208,6 @@
           { key: "1", label: "New Game", value: "new", aliases: ["new", "start"] },
           { key: "2", label: "Load Game", value: "load", aliases: ["load", "continue"] },
           { key: "3", label: "Cloud Saves", value: "cloud", aliases: ["cloud", "online", "sync"] },
-          { key: "4", label: "Quit", value: "quit", aliases: ["quit", "q", "exit"] },
         ], { prompt: "Main menu choice: " });
 
         if (choice === "new") {
@@ -1234,9 +1227,6 @@
             await this.runStory(state);
             return;
           }
-        }
-        if (choice === "quit") {
-          return;
         }
       }
     }

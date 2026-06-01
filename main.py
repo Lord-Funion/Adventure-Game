@@ -2,9 +2,8 @@
 
 import sys
 
-from colorama import just_fix_windows_console
-
 from text_adventure.story import run_game
+from text_adventure.terminal_colors import just_fix_windows_console
 
 
 if __name__ == "__main__":

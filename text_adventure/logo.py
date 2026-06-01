@@ -2,7 +2,7 @@
 
 import os
 
-from colorama import Fore, Style
+from .terminal_colors import Fore, Style
 
 
 def _print_text_logo():

@@ -8,10 +8,8 @@ import getpass
 import random
 from pathlib import Path
 
-from colorama import Fore, Style
-
 from . import cloud_saves
-from .combat import game_over, spell_fight
+from .combat import GameOver, game_over, spell_fight
 from .logo import show_startup_logo
 from .pacing import ask, say
 from .player import add_spell, create_player, offer_potions, print_stats
@@ -26,6 +24,7 @@ from .save_system import (
     write_save_text,
 )
 from .shop import run_shop
+from .terminal_colors import Fore, Style
 from .ui import MenuOption, ask_choice, choose_menu
 
 
@@ -322,7 +321,7 @@ def _cloud_load_interactive():
             str(len(options) + 1),
             "Back",
             "back",
-            aliases=("back", "cancel", "q", "quit"),
+            aliases=("back", "cancel"),
         )
     )
 
@@ -388,7 +387,7 @@ def _cloud_menu(current_state=None):
                         str(next_key + 2),
                         "Back",
                         "back",
-                        aliases=("back", "cancel", "q", "quit"),
+                        aliases=("back", "cancel"),
                     ),
                 ]
             )
@@ -397,7 +396,7 @@ def _cloud_menu(current_state=None):
                 [
                     MenuOption("1", "Create Account", "register", aliases=("register", "create")),
                     MenuOption("2", "Sign In", "login", aliases=("login", "sign in")),
-                    MenuOption("3", "Back", "back", aliases=("back", "cancel", "q", "quit")),
+                    MenuOption("3", "Back", "back", aliases=("back", "cancel")),
                 ]
             )
 
@@ -455,7 +454,7 @@ def _load_state_interactive():
                 str(len(options) + 1),
                 "Back",
                 "back",
-                aliases=("back", "cancel", "q", "quit"),
+                aliases=("back", "cancel"),
             )
         )
 
@@ -517,7 +516,6 @@ def _checkpoint_menu(state):
                 MenuOption("3", "Load Game", "load", aliases=("load", "l")),
                 MenuOption("4", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
                 MenuOption("5", "Player Stats", "stats", aliases=("stats", "status")),
-                MenuOption("6", "Quit", "quit", aliases=("quit", "q", "exit")),
             ],
             prompt="Checkpoint choice: ",
             subtitle=subtitle,
@@ -537,9 +535,6 @@ def _checkpoint_menu(state):
                 return loaded_state
         elif choice == "stats":
             print_stats(state["player"])
-        elif choice == "quit":
-            say("\nProgress is saved in saves/autosave.tasave if autosave succeeded.", "quick")
-            return None
 
 
 def _run_scene(scene_id, player, shop_stock):
@@ -604,6 +599,17 @@ def _run_story(state):
             return
 
 
+def _restart_menu():
+    return choose_menu(
+        "Game Over",
+        [
+            MenuOption("1", "Restart", "restart", aliases=("restart", "r", "new game", "new")),
+            MenuOption("2", "Main Menu", "main", aliases=("main", "menu", "m")),
+        ],
+        prompt="Game over choice: ",
+    )
+
+
 def run_game(load_path=None):
     """Create or load a player and play the text adventure."""
     show_startup_logo()
@@ -614,9 +620,63 @@ def run_game(load_path=None):
         except SaveError as exc:
             say(f"\nLoad failed: {exc}", "quick")
             return
-        _run_story(state)
-        return
+        while True:
+            try:
+                _run_story(state)
+                return
+            except GameOver:
+                choice = _restart_menu()
+                if choice == "restart":
+                    show_startup_logo()
+                    state = _new_state()
+                    continue
+                if choice == "main":
+                    show_startup_logo()
+                    break
 
+    mode = "menu"
+    while True:
+        if mode == "restart":
+            try:
+                _run_story(_new_state())
+                return
+            except GameOver:
+                choice = _restart_menu()
+                if choice == "restart":
+                    show_startup_logo()
+                    mode = "restart"
+                elif choice == "main":
+                    show_startup_logo()
+                    mode = "menu"
+                continue
+
+        try:
+            state = _main_menu_state()
+        except GameOver:
+            choice = _restart_menu()
+            if choice == "restart":
+                show_startup_logo()
+                mode = "restart"
+            elif choice == "main":
+                show_startup_logo()
+                mode = "menu"
+            continue
+        if state is None:
+            continue
+        try:
+            _run_story(state)
+            return
+        except GameOver:
+            choice = _restart_menu()
+            if choice == "restart":
+                show_startup_logo()
+                mode = "restart"
+            elif choice == "main":
+                show_startup_logo()
+                mode = "menu"
+
+
+def _main_menu_state():
     while True:
         choice = choose_menu(
             "Adventure Game",
@@ -624,26 +684,20 @@ def run_game(load_path=None):
                 MenuOption("1", "New Game", "new", aliases=("new", "start")),
                 MenuOption("2", "Load Game", "load", aliases=("load", "continue")),
                 MenuOption("3", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
-                MenuOption("4", "Quit", "quit", aliases=("quit", "q", "exit")),
             ],
             prompt="Main menu choice: ",
         )
 
         if choice == "new":
-            _run_story(_new_state())
-            return
+            return _new_state()
         if choice == "load":
             state = _load_state_interactive()
             if state is not None:
-                _run_story(state)
-                return
+                return state
         if choice == "cloud":
             state = _cloud_menu()
             if state is not None:
-                _run_story(state)
-                return
-        if choice == "quit":
-            return
+                return state
 
 
 def intro_scene(player):

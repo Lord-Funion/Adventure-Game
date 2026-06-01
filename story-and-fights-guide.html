@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adventure Game Story And Fight Instructions</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: #f6f1e8;
+      --text: #1f2428;
+      --muted: #5d6570;
+      --panel: #ffffff;
+      --border: #d8ccba;
+      --accent: #2b665f;
+      --accent-soft: #dcefeb;
+      --code: #eee3d4;
+      --terminal: #101214;
+      --terminal-text: #f5f5f5;
+      --warn: #7a4b00;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.55;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+    }
+
+    main {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 36px 24px 72px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 2.2rem;
+      line-height: 1.15;
+    }
+
+    h2 {
+      margin: 38px 0 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      font-size: 1.45rem;
+    }
+
+    h3 {
+      margin: 26px 0 10px;
+      font-size: 1.08rem;
+    }
+
+    p,
+    ul,
+    ol {
+      margin: 0 0 16px;
+    }
+
+    ul,
+    ol {
+      padding-left: 24px;
+    }
+
+    li {
+      margin: 7px 0;
+    }
+
+    a {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 0.12em 0.32em;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.95em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: var(--terminal);
+      color: var(--terminal-text);
+      padding: 16px;
+      margin: 0 0 18px;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 18px;
+      background: var(--panel);
+    }
+
+    th,
+    td {
+      border: 1px solid var(--border);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--accent-soft);
+    }
+
+    .subtitle {
+      max-width: 840px;
+      color: var(--muted);
+      font-size: 1.04rem;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 9px 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 16px 18px;
+      margin: 22px 0;
+    }
+
+    .toc a {
+      display: block;
+      text-decoration: none;
+    }
+
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: var(--panel);
+      padding: 12px 14px;
+      margin: 0 0 18px;
+    }
+
+    .warning {
+      border-left-color: var(--warn);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #151719;
+        --text: #edeff2;
+        --muted: #b7bec8;
+        --panel: #1f2328;
+        --border: #3a4048;
+        --accent: #78d4d0;
+        --accent-soft: #173636;
+        --code: #30343a;
+        --terminal: #0f1113;
+        --terminal-text: #f4f4f4;
+        --warn: #ffd75f;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Adventure Game Story And Fight Instructions</h1>
+    <p class="subtitle">Use this when you want to add new story content, new monsters, and new combat encounters. The Python game and the browser website are separate copies of the game logic, so changes must be made in both places if you want both versions to match.</p>
+
+    <nav class="toc" aria-label="Guide sections">
+      <a href="#files">Files You Edit</a>
+      <a href="#add-existing-fight">Add A Fight With An Existing Monster</a>
+      <a href="#add-monster">Add A New Monster</a>
+      <a href="#add-scene">Add A New Story Scene</a>
+      <a href="#full-example">Full Copy-Paste Example</a>
+      <a href="#test">Test Your Changes</a>
+      <a href="#mistakes">Common Mistakes</a>
+    </nav>
+
+    <section id="files">
+      <h2>Files You Edit</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Goal</th>
+            <th>Python game</th>
+            <th>Browser website</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Add or reorder story scenes</td>
+            <td><code>text_adventure/story.py</code></td>
+            <td><code>web/app.js</code></td>
+          </tr>
+          <tr>
+            <td>Add monster stats</td>
+            <td><code>text_adventure/data.py</code></td>
+            <td><code>web/app.js</code></td>
+          </tr>
+          <tr>
+            <td>Add spell stats</td>
+            <td><code>text_adventure/data.py</code></td>
+            <td><code>web/app.js</code></td>
+          </tr>
+          <tr>
+            <td>Change combat rules for every fight</td>
+            <td><code>text_adventure/combat.py</code></td>
+            <td><code>web/app.js</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout warning">
+        <p><strong>Important:</strong> the website is not generated from the Python files. If you add a monster or scene only in Python, <code>python3 main.py</code> can use it but the website cannot. If you add it only in <code>web/app.js</code>, the website can use it but the Python game cannot.</p>
+      </div>
+    </section>
+
+    <section id="add-existing-fight">
+      <h2>Add A Fight With An Existing Monster</h2>
+      <p>Use this when the monster already exists in <code>MONSTERS</code>, such as <code>goblin</code>, <code>troll</code>, <code>skeleton</code>, <code>werewolf</code>, <code>ogre</code>, <code>witch</code>, or <code>vampire</code>.</p>
+
+      <h3>Python</h3>
+      <ol>
+        <li>Open <code>text_adventure/story.py</code>.</li>
+        <li>Find the scene function where the fight should happen, such as <code>forest_scene(player, shop_stock)</code>.</li>
+        <li>Add this pattern inside the function at the exact point where the fight should start.</li>
+      </ol>
+      <pre><code>say("\nA vampire drops from the ceiling.", "beat")
+if fight_or_run("\nThe vampire blocks your path. Do you fight or run? ") == "run":
+    say("\nThe vampire catches you before you reach the door.", "beat")
+    game_over(player)
+
+spell_fight("vampire", player)
+offer_potions(player)</code></pre>
+
+      <h3>Browser Website</h3>
+      <ol>
+        <li>Open <code>web/app.js</code>.</li>
+        <li>Find the matching scene method, such as <code>async forestScene(player, shopStock)</code>.</li>
+        <li>Add the JavaScript version at the same story point.</li>
+      </ol>
+      <pre><code>this.say("\nA vampire drops from the ceiling.");
+if (await this.fightOrRun("\nThe vampire blocks your path. Do you fight or run? ") === "run") {
+  this.say("\nThe vampire catches you before you reach the door.");
+  this.gameOver(player);
+}
+
+await this.spellFight("vampire", player);
+await this.offerPotions(player);</code></pre>
+    </section>
+
+    <section id="add-monster">
+      <h2>Add A New Monster</h2>
+      <p>A monster needs three fields: <code>health</code>, <code>damage</code>, and <code>attacks</code>. The fight command uses the monster key, not the display text. For example, <code>spell_fight("bandit", player)</code> uses the <code>"bandit"</code> monster entry.</p>
+
+      <h3>Python</h3>
+      <ol>
+        <li>Open <code>text_adventure/data.py</code>.</li>
+        <li>Find <code>MONSTERS = {</code>.</li>
+        <li>Add the new monster inside that dictionary.</li>
+      </ol>
+      <pre><code>    "bandit": {
+        "health": 28,
+        "damage": 8,
+        "attacks": ["rusty dagger", "cheap shot", "boot kick"],
+    },</code></pre>
+
+      <h3>Browser Website</h3>
+      <ol>
+        <li>Open <code>web/app.js</code>.</li>
+        <li>Find <code>const MONSTERS = {</code> near the top of the file.</li>
+        <li>Add the same monster using JavaScript object syntax.</li>
+      </ol>
+      <pre><code>    bandit: {
+      health: 28,
+      damage: 8,
+      attacks: ["rusty dagger", "cheap shot", "boot kick"],
+    },</code></pre>
+    </section>
+
+    <section id="add-scene">
+      <h2>Add A New Story Scene</h2>
+      <p>A normal scene is one checkpoint. The game autosaves after each scene, then moves to the next id in <code>SCENE_ORDER</code>. Do not rename existing scene ids unless you also want to break old saves that point to those ids.</p>
+
+      <h3>Python Checklist</h3>
+      <ol>
+        <li>Open <code>text_adventure/story.py</code>.</li>
+        <li>Find <code>SCENE_ORDER = (</code> and add your new scene id where it belongs.</li>
+        <li>Find <code>SCENE_TITLES = {</code> and add the readable checkpoint title.</li>
+        <li>Find <code>def _run_scene(scene_id, player, shop_stock):</code> and add an <code>elif</code> branch for the new id.</li>
+        <li>Add the new scene function near the other scene functions at the bottom of the file.</li>
+      </ol>
+
+      <h3>Browser Checklist</h3>
+      <ol>
+        <li>Open <code>web/app.js</code>.</li>
+        <li>Find <code>const SCENE_ORDER = [</code> and add the same scene id in the same position.</li>
+        <li>Find <code>const SCENE_TITLES = {</code> and add the same readable title.</li>
+        <li>Find <code>async runScene(sceneId, player, shopStock)</code> and add an <code>else if</code> branch for the new id.</li>
+        <li>Add the new <code>async</code> scene method near the other scene methods.</li>
+      </ol>
+    </section>
+
+    <section id="full-example">
+      <h2>Full Copy-Paste Example: Add A Bandit Camp Scene</h2>
+      <p>This example adds a new <code>bandit_camp</code> checkpoint after <code>forest</code> and before <code>twin_doors</code>. It also adds a new <code>bandit</code> monster and starts a fight in the new scene.</p>
+
+      <h3>1. Python Monster</h3>
+      <p>In <code>text_adventure/data.py</code>, add this inside <code>MONSTERS</code>:</p>
+      <pre><code>    "bandit": {
+        "health": 28,
+        "damage": 8,
+        "attacks": ["rusty dagger", "cheap shot", "boot kick"],
+    },</code></pre>
+
+      <h3>2. Python Scene Order</h3>
+      <p>In <code>text_adventure/story.py</code>, update <code>SCENE_ORDER</code> so the new scene is after <code>"forest"</code>:</p>
+      <pre><code>SCENE_ORDER = (
+    "intro",
+    "wizard",
+    "locked_door",
+    "first_goblin",
+    "village",
+    "forest",
+    "bandit_camp",
+    "twin_doors",
+    "witch",
+)</code></pre>
+
+      <h3>3. Python Scene Title</h3>
+      <p>In <code>SCENE_TITLES</code>, add this row:</p>
+      <pre><code>    "bandit_camp": "Bandit Camp",</code></pre>
+
+      <h3>4. Python Scene Dispatcher</h3>
+      <p>In <code>_run_scene()</code>, add this branch between the <code>forest</code> and <code>twin_doors</code> branches:</p>
+      <pre><code>    elif scene_id == "bandit_camp":
+        bandit_camp_scene(player)</code></pre>
+
+      <h3>5. Python Scene Function</h3>
+      <p>Add this new function near the other scene functions in <code>text_adventure/story.py</code>:</p>
+      <pre><code>def bandit_camp_scene(player):
+    """Optional camp encounter after the forest."""
+    say("\nA campfire flickers beside the trail.")
+    say("A bandit steps out with a crooked dagger.", "beat")
+
+    if fight_or_run("\nThe bandit blocks the road. Do you fight or run? ") == "run":
+        say("\nYou sprint through the brush and drop $5 in the panic.", "beat")
+        player["money"] = max(0, player["money"] - 5)
+        return
+
+    spell_fight("bandit", player)
+    reward = random.randint(8, 14)
+    player["money"] += reward
+    say(f"\nYou search the camp and find ${reward}.", "beat")
+    print_stats(player)
+    offer_potions(player)</code></pre>
+
+      <h3>6. Browser Monster</h3>
+      <p>In <code>web/app.js</code>, add this inside <code>const MONSTERS = {</code>:</p>
+      <pre><code>    bandit: {
+      health: 28,
+      damage: 8,
+      attacks: ["rusty dagger", "cheap shot", "boot kick"],
+    },</code></pre>
+
+      <h3>7. Browser Scene Order</h3>
+      <p>In <code>web/app.js</code>, update <code>SCENE_ORDER</code> so the new scene is after <code>"forest"</code>:</p>
+      <pre><code>  const SCENE_ORDER = [
+    "intro",
+    "wizard",
+    "locked_door",
+    "first_goblin",
+    "village",
+    "forest",
+    "bandit_camp",
+    "twin_doors",
+    "witch",
+  ];</code></pre>
+
+      <h3>8. Browser Scene Title</h3>
+      <p>In <code>SCENE_TITLES</code>, add this row:</p>
+      <pre><code>    bandit_camp: "Bandit Camp",</code></pre>
+
+      <h3>9. Browser Scene Dispatcher</h3>
+      <p>In <code>async runScene(sceneId, player, shopStock)</code>, add this branch between the <code>forest</code> and <code>twin_doors</code> branches:</p>
+      <pre><code>      } else if (sceneId === "bandit_camp") {
+        await this.banditCampScene(player);</code></pre>
+
+      <h3>10. Browser Scene Method</h3>
+      <p>Add this new method near the other scene methods in <code>web/app.js</code>:</p>
+      <pre><code>    async banditCampScene(player) {
+      this.say("\nA campfire flickers beside the trail.");
+      this.say("A bandit steps out with a crooked dagger.");
+
+      if (await this.fightOrRun("\nThe bandit blocks the road. Do you fight or run? ") === "run") {
+        this.say("\nYou sprint through the brush and drop $5 in the panic.");
+        player.money = Math.max(0, player.money - 5);
+        return;
+      }
+
+      await this.spellFight("bandit", player);
+      const reward = randomInt(8, 14);
+      player.money += reward;
+      this.say(`\nYou search the camp and find $${reward}.`);
+      this.printStats(player);
+      await this.offerPotions(player);
+    }</code></pre>
+    </section>
+
+    <section id="test">
+      <h2>Test Your Changes</h2>
+      <ol>
+        <li>Run the Python game with fast text: <code>TEXT_ADVENTURE_SPEED=instant python3 main.py</code>.</li>
+        <li>Start a new game and play until the new scene.</li>
+        <li>At the fight, choose <code>fight</code>, then try <code>Basic Attack</code> and at least one spell.</li>
+        <li>Test the run path if your scene has one.</li>
+        <li>Open <code>index.html</code> in a browser and repeat the same story path on the website version.</li>
+        <li>If you inserted the scene between existing checkpoints, start a new game for the cleanest test. Old saves continue from whatever <code>next_scene</code> they already stored.</li>
+      </ol>
+    </section>
+
+    <section id="mistakes">
+      <h2>Common Mistakes</h2>
+      <ul>
+        <li><strong>Adding a scene id but no dispatcher branch:</strong> the game reaches the checkpoint, then raises an unknown story checkpoint error.</li>
+        <li><strong>Calling a monster key that does not exist:</strong> <code>spell_fight("bandit", player)</code> requires a matching <code>"bandit"</code> entry in Python and a matching <code>bandit</code> entry in JavaScript.</li>
+        <li><strong>Updating Python but not the website:</strong> the terminal game works, but the browser version does not know about the new scene or monster.</li>
+        <li><strong>Using Python syntax in JavaScript:</strong> Python uses <code>player["money"] += 10</code>; JavaScript uses <code>player.money += 10;</code>.</li>
+        <li><strong>Using JavaScript syntax in Python:</strong> JavaScript uses <code>await this.spellFight("bandit", player);</code>; Python uses <code>spell_fight("bandit", player)</code>.</li>
+        <li><strong>Renaming existing scene ids:</strong> encrypted saves store <code>next_scene</code>. If a save points to an id you removed or renamed, it will not load cleanly.</li>
+        <li><strong>Adding unsupported spell effects:</strong> combat currently understands <code>burn</code> and <code>stun</code>. New effect names need combat code in both <code>text_adventure/combat.py</code> and <code>web/app.js</code>.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -2,16 +2,19 @@
 
 import random
 
-from colorama import Fore, Style
-
 from .data import LOOT_DROPS, MONSTERS, SPELLS
 from .pacing import say
 from .player import print_stats
+from .terminal_colors import Fore, Style
 from .ui import MenuOption, choose_menu, stat_meter
 
 
 BASIC_DAMAGE = 5
 STATUS_DAMAGE = 3
+
+
+class GameOver(Exception):
+    """Raised when the player dies so the story runner can show restart options."""
 
 
 def _monster_attack(monster_name, monster, player):
@@ -216,4 +219,4 @@ def game_over(player):
     """Stop the program when the player dies."""
     say("You have been defeated!", "beat")
     print(f"GAME OVER\nYou had {Fore.YELLOW}${player['money']}{Style.RESET_ALL}.")
-    raise SystemExit
+    raise GameOver()

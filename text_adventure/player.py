@@ -3,10 +3,9 @@
 from collections import Counter
 import random
 
-from colorama import Fore, Style
-
 from .data import SELLABLE_LOOT
 from .pacing import say
+from .terminal_colors import Fore, Style
 from .ui import MenuOption, choose_menu, divider, money_text, stat_meter
 
 

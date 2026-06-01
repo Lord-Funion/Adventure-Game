@@ -3,3 +3,6 @@ __pycache__/
 saves/
 settings/
 server/adventure-api/config.php
+build/
+dist/
+*.exe

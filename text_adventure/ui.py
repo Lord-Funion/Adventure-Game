@@ -2,9 +2,8 @@
 
 from dataclasses import dataclass, field
 
-from colorama import Fore, Style
-
 from .pacing import ask, say
+from .terminal_colors import Fore, Style
 
 
 @dataclass(frozen=True)
