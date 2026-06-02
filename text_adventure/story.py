@@ -42,6 +42,10 @@ SCENE_ORDER = (
     "mountain_pass",
     "moonlit_market",
     "vampire_castle",
+    "false_throne",
+    "underkeep",
+    "clocktower",
+    "well",
     "dragon_gate",
     "final_battle",
 )
@@ -57,6 +61,10 @@ SCENE_TITLES = {
     "mountain_pass": "Mountain Pass",
     "moonlit_market": "Moonlit Market",
     "vampire_castle": "Vampire Castle",
+    "false_throne": "False Throne",
+    "underkeep": "Underkeep",
+    "clocktower": "Clocktower",
+    "well": "Old Well",
     "dragon_gate": "Dragon Gate",
     "final_battle": "Final Battle",
     FINISHED_SCENE: "Finished Game",
@@ -129,6 +137,9 @@ def _create_shop_stock():
         "Moon Leap Manual": True,
         "Golden Fly Protein": True,
         "Dragonfly Tactics": True,
+        "Clockwork Compass": True,
+        "Old Bell Manual": True,
+        "Well Whisper Notes": True,
     }
 
 
@@ -659,6 +670,14 @@ def _run_scene(scene_id, player, shop_stock):
         moonlit_market_scene(player, shop_stock)
     elif scene_id == "vampire_castle":
         vampire_castle_scene(player)
+    elif scene_id == "false_throne":
+        false_throne_scene(player, shop_stock)
+    elif scene_id == "underkeep":
+        underkeep_scene(player)
+    elif scene_id == "clocktower":
+        clocktower_scene(player, shop_stock)
+    elif scene_id == "well":
+        well_scene(player)
     elif scene_id == "dragon_gate":
         dragon_gate_scene(player, shop_stock)
     elif scene_id == "final_battle":
@@ -672,6 +691,58 @@ def _finish_game(player):
     say(f"\nGood job, {player.get('name', 'Adventurer')}, you have completed the game.", "scene")
     say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.", "scene")
     say(f"\nTHE END\nYou finished with {Fore.YELLOW}${player['money']}{Style.RESET_ALL}.", "none")
+    _postgame_menu(player)
+
+
+def _postgame_menu(player):
+    while True:
+        choice = choose_menu(
+            "Postgame",
+            [
+                MenuOption("1", "Build a House", "house", aliases=("house", "build")),
+                MenuOption("2", "Start a Family", "family", aliases=("family", "home")),
+                MenuOption("3", "Garden", "garden", aliases=("garden", "farm")),
+                MenuOption("4", "Open a Shop", "shop", aliases=("shop", "store")),
+                MenuOption("5", "Help the Town", "town", aliases=("town", "help")),
+                MenuOption("6", "Take a Quest", "quest", aliases=("quest", "job")),
+                MenuOption("7", "Hold a Festival", "festival", aliases=("festival", "party")),
+                MenuOption("8", "Keep Adventuring", "adventure", aliases=("adventure", "wander")),
+                MenuOption("9", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
+            ],
+            prompt="Postgame choice: ",
+            subtitle="The realm is safe enough to live in now.",
+        )
+        if choice == "house":
+            say("\nYou buy land near the road and build a small house with a sturdy roof.", "scene")
+            player["money"] = max(0, player["money"] - 25)
+            say("You hang a lantern by the door and finally have a place to come back to.", "scene")
+        elif choice == "family":
+            say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.", "scene")
+            say("The house gets louder, warmer, and a lot more lived in.", "scene")
+        elif choice == "garden":
+            say("\nYou plant rows of vegetables behind the house and grow herbs for potions.", "scene")
+            say("The frog supervises the garden like it owns the property.", "scene")
+        elif choice == "shop":
+            say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.", "scene")
+            player["money"] += 10
+            say("Travelers start leaving notes and odd little trinkets on the counter.", "scene")
+        elif choice == "town":
+            say("\nYou help repair roads, roofs, and the old bridge over the river.", "scene")
+            say("The village starts looking like a place people can grow old in.", "scene")
+        elif choice == "quest":
+            outcome = random.choice([
+                "A farmer hires you to find three missing sheep. You return with four, because one tagged along.",
+                "The blacksmith asks for rare ore. You spend the afternoon in the hills and come back with a strange blue stone.",
+                "A child asks for a hero story. You make one up, then realize it is almost true.",
+            ])
+            say(f"\n{outcome}", "scene")
+        elif choice == "festival":
+            say("\nYou help organize a town festival with lanterns, music, and too many pies.", "scene")
+            say("By nightfall the whole valley feels warmer.", "scene")
+        elif choice == "adventure":
+            say("\nYou take one more walk into the hills and come back with stories nobody believes.", "scene")
+        elif choice == "exit":
+            _exit_game()
 
 
 def _run_story(state):
@@ -932,6 +1003,13 @@ def village_scene(player, shop_stock):
     print_stats(player)
     offer_potions(player)
 
+    hidden = ask("\nBefore you leave, the cobblestones seem to whisper. Type what you heard or press Enter: ")
+    if hidden.strip().lower() == "listen":
+        say("\nA loose brick slides aside and reveals a narrow ladder.", "beat")
+        clocktower_scene(player, shop_stock)
+    elif hidden.strip().lower() == "well":
+        well_scene(player)
+
     enter_store = yes_no("\nYou see Harold Sellsalot's General Store. Go inside? (yes/no): ")
     if enter_store == "no":
         say("\nA skeleton archer outside the village shoots you.", "beat")
@@ -967,6 +1045,9 @@ def forest_scene(player, shop_stock):
 
     say("\nAt the forest edge, Miss Costalot waves you over to her traveling cart.")
     run_shop(player, shop_stock, advanced=True)
+    if ask("\nA mossy sign points off the road. Type 'detour' to ignore it, or press Enter: ").strip().lower() == "detour":
+        say("\nYou push through nettles and find a forgotten well.", "beat")
+        well_scene(player)
 
 
 def twin_doors_scene(player):
@@ -1046,6 +1127,10 @@ def moonlit_market_scene(player, shop_stock):
     say(f"\nThe shadow knight drops {money_text(30)} and a note that says: please stop Lord Dreadbiscuit.")
     print_stats(player)
     offer_potions(player)
+    secret = ask("\nA vendor drops a receipt. Type the first word printed in tiny ink, or press Enter: ")
+    if secret.strip().lower() == "clock":
+        say("\nThe receipt opens a seam in the market wall.", "beat")
+        clocktower_scene(player, shop_stock)
 
 
 def vampire_castle_scene(player):
@@ -1060,8 +1145,77 @@ def vampire_castle_scene(player):
     player["backpack"].append("Silver Key of Mild Concern")
     player["money"] += 40
     say(f"\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus {money_text(40)}.")
+    say("The key is real, but the real castle keeps moving farther away.", "beat")
     print_stats(player)
     offer_potions(player)
+
+
+def false_throne_scene(player, shop_stock):
+    """A long detour that looks like the end and is not the end."""
+    say("\nThe Silver Key opens a hall with a throne made of polished cookies.")
+    say("A herald in a paper crown announces that the final castle is 'just ahead' again.", "beat")
+    if fight_or_run("\nA mirrored knight steps out of the throne room. Fight or run? ") == "run":
+        say("\nYou run, but the hallway keeps becoming longer behind you.", "beat")
+        game_over(player)
+
+    spell_fight("shadow knight", player)
+    reward = random.randint(20, 35)
+    player.money += reward
+    say(f"\nBehind the false throne, you find {money_text(reward)} and a stairway that goes down.")
+    print_stats(player)
+    offer_potions(player)
+    run_shop(player, shop_stock, advanced=True)
+
+
+def underkeep_scene(player):
+    """The road down under the castle before the real last gate."""
+    say("\nThe stairway leads under the castle into a damp underkeep.")
+    say("A sleepy archivist says the princess is not here, then stamps your map with 'TRY AGAIN'.", "beat")
+    if fight_or_run("\nA chained ogre blocks the only tunnel. Fight or run? ") == "run":
+        say("\nYou run into a wall of old bricks and lose the argument.", "beat")
+        game_over(player)
+
+    spell_fight("ogre", player)
+    player["backpack"].append("Ancient Map Fragment")
+    player["money"] += 25
+    say("\nThe ogre drops an Ancient Map Fragment and a small pouch of coins.")
+    say("The fragment points deeper underground, because of course it does.", "beat")
+    print_stats(player)
+    offer_potions(player)
+    if ask("\nThe tunnel breathes once. Type 'deeper' to keep going, or press Enter: ").strip().lower() == "deeper":
+        say("\nYou slip into a maintenance passage that should not exist.", "beat")
+        well_scene(player)
+
+
+def clocktower_scene(player, shop_stock):
+    """A hidden side path with a slow clockwork quest."""
+    say("\nA narrow stair climbs into a clocktower nobody mentioned.")
+    say("Each floor is quieter than the last, as if the tower is trying not to be found.", "beat")
+    if fight_or_run("\nA brass sentinel blocks the gears. Fight or run? ") == "run":
+        say("\nYou run, but the tower ticks its way into your path again.", "beat")
+        game_over(player)
+
+    spell_fight("shadow knight", player)
+    player["money"] += 20
+    player["backpack"].append("Clockwork Cog")
+    say("\nThe sentinel drops a Clockwork Cog and the tower keeps turning anyway.")
+    print_stats(player)
+    offer_potions(player)
+    run_shop(player, shop_stock, advanced=True)
+
+
+def well_scene(player):
+    """A tiny hidden quest that looks like nothing."""
+    say("\nYou find an old well behind a fence that should not be easy to notice.")
+    say("Something from below taps back twice, waits, then once more.", "beat")
+    choice = yes_no("\nLean over and listen again? (yes/no): ")
+    if choice == "no":
+        say("\nThe well stays quiet, which is somehow worse.", "beat")
+        return
+    player["backpack"].append("Well Water")
+    player["money"] += 7
+    say("\nA bucket rises with seven coins and a bottle of cold well water.")
+    print_stats(player)
 
 
 def dragon_gate_scene(player, shop_stock):
@@ -1080,6 +1234,7 @@ def dragon_gate_scene(player, shop_stock):
     player["backpack"].append("Dragon Scale Chip")
     player["money"] += 60
     say(f"\nThe dragon bows, gives you a Dragon Scale Chip, and pushes {money_text(60)} into your hands.")
+    say("You are sure this must be the last thing. It is not the last thing.", "beat")
     print_stats(player)
     offer_potions(player)
 

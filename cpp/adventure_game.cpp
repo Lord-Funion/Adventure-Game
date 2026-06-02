@@ -280,6 +280,9 @@ std::string mana_value_text(int current, int maximum) {
     return term::blue(std::to_string(current) + "/" + std::to_string(maximum));
 }
 
+void clocktower_scene(Player& player, std::unordered_map<std::string, bool>& shop_stock);
+void well_scene(Player& player);
+
 const std::vector<std::string>& scene_order() {
     static const std::vector<std::string> order = {
         "intro",
@@ -293,6 +296,10 @@ const std::vector<std::string>& scene_order() {
         "mountain_pass",
         "moonlit_market",
         "vampire_castle",
+        "false_throne",
+        "underkeep",
+        "clocktower",
+        "well",
         "dragon_gate",
         "final_battle",
     };
@@ -312,6 +319,10 @@ const std::unordered_map<std::string, std::string>& scene_titles() {
         {"mountain_pass", "Mountain Pass"},
         {"moonlit_market", "Moonlit Market"},
         {"vampire_castle", "Vampire Castle"},
+        {"false_throne", "False Throne"},
+        {"underkeep", "Underkeep"},
+        {"clocktower", "Clocktower"},
+        {"well", "Old Well"},
         {"dragon_gate", "Dragon Gate"},
         {"final_battle", "Final Battle"},
         {FINISHED_SCENE, "Finished Game"},
@@ -416,6 +427,9 @@ std::unordered_map<std::string, bool> create_shop_stock() {
         {"Moon Leap Manual", true},
         {"Golden Fly Protein", true},
         {"Dragonfly Tactics", true},
+        {"Clockwork Compass", true},
+        {"Old Bell Manual", true},
+        {"Well Whisper Notes", true},
     };
 }
 
@@ -1717,6 +1731,13 @@ void village_scene(Player& player, std::unordered_map<std::string, bool>& shop_s
     }
     spell_fight("skeleton", player);
     offer_potions(player);
+    std::string whisper = normalize_choice(ask("\nBefore you leave, the cobblestones seem to whisper. Type what you heard or press Enter: "));
+    if (whisper == "listen") {
+        say("\nA loose brick slides aside and reveals a narrow ladder.");
+        clocktower_scene(player, shop_stock);
+    } else if (whisper == "well") {
+        well_scene(player);
+    }
 }
 
 void forest_scene(Player& player, std::unordered_map<std::string, bool>& shop_stock) {
@@ -1739,6 +1760,10 @@ void forest_scene(Player& player, std::unordered_map<std::string, bool>& shop_st
 
     say("\nAt the forest edge, Miss Costalot waves you over to her traveling cart.");
     run_shop(player, shop_stock, true);
+    if (normalize_choice(ask("\nA mossy sign points off the road. Type 'detour' to ignore it, or press Enter: ")) == "detour") {
+        say("\nYou push through nettles and find a forgotten well.");
+        well_scene(player);
+    }
 }
 
 void twin_doors_scene(Player& player) {
@@ -1821,6 +1846,10 @@ void moonlit_market_scene(Player& player, std::unordered_map<std::string, bool>&
     say("\nThe shadow knight drops " + money_text(30) + " and a note that says: please stop Lord Dreadbiscuit.");
     print_stats(player);
     offer_potions(player);
+    if (normalize_choice(ask("\nA vendor drops a receipt. Type the first word printed in tiny ink, or press Enter: ")) == "clock") {
+        say("\nThe receipt opens a seam in the market wall.");
+        clocktower_scene(player, shop_stock);
+    }
 }
 
 void vampire_castle_scene(Player& player) {
@@ -1835,8 +1864,76 @@ void vampire_castle_scene(Player& player) {
     player.backpack.push_back("Silver Key of Mild Concern");
     player.money += 40;
     say("\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus " + money_text(40) + ".");
+    say("The key is real, but the real castle keeps moving farther away.");
     print_stats(player);
     offer_potions(player);
+}
+
+void false_throne_scene(Player& player, std::unordered_map<std::string, bool>& shop_stock) {
+    say("\nThe Silver Key opens a hall with a throne made of polished cookies.");
+    say("A herald in a paper crown announces that the final castle is 'just ahead' again.");
+    if (fight_or_run("\nA mirrored knight steps out of the throne room. Fight or run? ") == "run") {
+        say("\nYou run, but the hallway keeps becoming longer behind you.");
+        game_over(player);
+    }
+
+    spell_fight("shadow knight", player);
+    int reward = random_int(20, 35);
+    player.money += reward;
+    say("\nBehind the false throne, you find " + money_text(reward) + " and a stairway that goes down.");
+    print_stats(player);
+    offer_potions(player);
+    run_shop(player, shop_stock, true);
+}
+
+void clocktower_scene(Player& player, std::unordered_map<std::string, bool>& shop_stock) {
+    say("\nA narrow stair climbs into a clocktower nobody mentioned.");
+    say("Each floor is quieter than the last, as if the tower is trying not to be found.");
+    if (fight_or_run("\nA brass sentinel blocks the gears. Fight or run? ") == "run") {
+        say("\nYou run, but the tower ticks its way into your path again.");
+        game_over(player);
+    }
+    spell_fight("shadow knight", player);
+    player.money += 20;
+    player.backpack.push_back("Clockwork Cog");
+    say("\nThe sentinel drops a Clockwork Cog and the tower keeps turning anyway.");
+    print_stats(player);
+    offer_potions(player);
+    run_shop(player, shop_stock, true);
+}
+
+void well_scene(Player& player) {
+    say("\nYou find an old well behind a fence that should not be easy to notice.");
+    say("Something from below taps back twice, waits, then once more.");
+    if (yes_no("\nLean over and listen again? (yes/no): ") == "no") {
+        say("\nThe well stays quiet, which is somehow worse.");
+        return;
+    }
+    player.backpack.push_back("Well Water");
+    player.money += 7;
+    say("\nA bucket rises with seven coins and a bottle of cold well water.");
+    print_stats(player);
+}
+
+void underkeep_scene(Player& player) {
+    say("\nThe stairway leads under the castle into a damp underkeep.");
+    say("A sleepy archivist says the princess is not here, then stamps your map with 'TRY AGAIN'.");
+    if (fight_or_run("\nA chained ogre blocks the only tunnel. Fight or run? ") == "run") {
+        say("\nYou run into a wall of old bricks and lose the argument.");
+        game_over(player);
+    }
+
+    spell_fight("ogre", player);
+    player.backpack.push_back("Ancient Map Fragment");
+    player.money += 25;
+    say("\nThe ogre drops an Ancient Map Fragment and a small pouch of coins.");
+    say("The fragment points deeper underground, because of course it does.");
+    print_stats(player);
+    offer_potions(player);
+    if (normalize_choice(ask("\nThe tunnel breathes once. Type 'deeper' to keep going, or press Enter: ")) == "deeper") {
+        say("\nYou slip into a maintenance passage that should not exist.");
+        well_scene(player);
+    }
 }
 
 void dragon_gate_scene(Player& player, std::unordered_map<std::string, bool>& shop_stock) {
@@ -1855,6 +1952,7 @@ void dragon_gate_scene(Player& player, std::unordered_map<std::string, bool>& sh
     player.backpack.push_back("Dragon Scale Chip");
     player.money += 60;
     say("\nThe dragon bows, gives you a Dragon Scale Chip, and pushes " + money_text(60) + " into your hands.");
+    say("You are sure this must be the last thing. It is not the last thing.");
     print_stats(player);
     offer_potions(player);
 }
@@ -1871,6 +1969,55 @@ void final_battle_scene(Player& player) {
     say("\nLord Dreadbiscuit wobbles, crumbles, and apologizes to everyone he has inconvenienced.");
     say("Rumblerod appears from behind a curtain and insists he was helping invisibly the whole time.");
     print_stats(player);
+}
+
+void postgame_menu(Player& player) {
+    while (true) {
+        std::string choice = choose_menu("Postgame", {
+            {"1", "Build a House", "house", "", {"house", "build"}},
+            {"2", "Start a Family", "family", "", {"family", "home"}},
+            {"3", "Garden", "garden", "", {"garden", "farm"}},
+            {"4", "Open a Shop", "shop", "", {"shop", "store"}},
+            {"5", "Help the Town", "town", "", {"town", "help"}},
+            {"6", "Take a Quest", "quest", "", {"quest", "job"}},
+            {"7", "Hold a Festival", "festival", "", {"festival", "party"}},
+            {"8", "Keep Adventuring", "adventure", "", {"adventure", "wander"}},
+            {"9", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
+        }, "Postgame choice: ", "The realm is safe enough to live in now.");
+
+        if (choice == "house") {
+            say("\nYou buy land near the road and build a small house with a sturdy roof.");
+            player.money = std::max(0, player.money - 25);
+            say("You hang a lantern by the door and finally have a place to come back to.");
+        } else if (choice == "family") {
+            say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.");
+            say("The house gets louder, warmer, and a lot more lived in.");
+        } else if (choice == "garden") {
+            say("\nYou plant rows of vegetables behind the house and grow herbs for potions.");
+            say("The frog supervises the garden like it owns the property.");
+        } else if (choice == "shop") {
+            say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.");
+            player.money += 10;
+            say("Travelers start leaving notes and odd little trinkets on the counter.");
+        } else if (choice == "town") {
+            say("\nYou help repair roads, roofs, and the old bridge over the river.");
+            say("The village starts looking like a place people can grow old in.");
+        } else if (choice == "quest") {
+            static const std::vector<std::string> outcomes = {
+                "A farmer hires you to find three missing sheep. You return with four, because one tagged along.",
+                "The blacksmith asks for rare ore. You spend the afternoon in the hills and come back with a strange blue stone.",
+                "A child asks for a hero story. You make one up, then realize it is almost true.",
+            };
+            say("\n" + outcomes[random_int(0, static_cast<int>(outcomes.size()) - 1)]);
+        } else if (choice == "festival") {
+            say("\nYou help organize a town festival with lanterns, music, and too many pies.");
+            say("By nightfall the whole valley feels warmer.");
+        } else if (choice == "adventure") {
+            say("\nYou take one more walk into the hills and come back with stories nobody believes.");
+        } else if (choice == "exit") {
+            return;
+        }
+    }
 }
 
 void run_scene(const std::string& scene_id, Player& player, std::unordered_map<std::string, bool>& shop_stock) {
@@ -1897,6 +2044,14 @@ void run_scene(const std::string& scene_id, Player& player, std::unordered_map<s
         moonlit_market_scene(player, shop_stock);
     } else if (scene_id == "vampire_castle") {
         vampire_castle_scene(player);
+    } else if (scene_id == "false_throne") {
+        false_throne_scene(player, shop_stock);
+    } else if (scene_id == "underkeep") {
+        underkeep_scene(player);
+    } else if (scene_id == "clocktower") {
+        clocktower_scene(player, shop_stock);
+    } else if (scene_id == "well") {
+        well_scene(player);
     } else if (scene_id == "dragon_gate") {
         dragon_gate_scene(player, shop_stock);
     } else if (scene_id == "final_battle") {
@@ -1958,6 +2113,7 @@ void run_story(State state) {
         std::string scene_id = state.next_scene;
         if (scene_id == FINISHED_SCENE) {
             finish_game(state.player);
+            postgame_menu(state.player);
             return;
         }
 
@@ -1966,6 +2122,7 @@ void run_story(State state) {
         state.next_scene = next_scene(scene_id);
         if (state.next_scene == FINISHED_SCENE) {
             finish_game(state.player);
+            postgame_menu(state.player);
             return;
         }
 
