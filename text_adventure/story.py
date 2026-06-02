@@ -694,53 +694,138 @@ def _finish_game(player):
     _postgame_menu(player)
 
 
+def _postgame_has(player, item):
+    return item in player["backpack"]
+
+
+def _postgame_add_once(player, item):
+    if not _postgame_has(player, item):
+        player["backpack"].append(item)
+        return True
+    return False
+
+
+def _postgame_spend(player, amount):
+    if player["money"] < amount:
+        say(f"\nYou need {money_text(amount - player['money'])} more.", "quick")
+        return False
+    player["money"] -= amount
+    return True
+
+
+def _postgame_status(player):
+    milestones = [
+        "Postgame House",
+        "Second Floor",
+        "Family Hearth",
+        "Garden Patch",
+        "Hero Shop Ledger",
+        "Town Charter",
+        "Fishing Rod",
+        "River Boat",
+        "Apprentice Badge",
+        "Festival Banner",
+        "Hero Statue",
+    ]
+    unlocked = [item for item in milestones if _postgame_has(player, item)]
+    say(f"\nMoney: {money_text(player['money'])}", "quick")
+    say("Settlement: " + (", ".join(unlocked) if unlocked else "nothing built yet"), "quick")
+
+
 def _postgame_menu(player):
     while True:
         choice = choose_menu(
             "Postgame",
             [
-                MenuOption("1", "Build a House", "house", aliases=("house", "build")),
-                MenuOption("2", "Start a Family", "family", aliases=("family", "home")),
-                MenuOption("3", "Garden", "garden", aliases=("garden", "farm")),
-                MenuOption("4", "Open a Shop", "shop", aliases=("shop", "store")),
-                MenuOption("5", "Help the Town", "town", aliases=("town", "help")),
-                MenuOption("6", "Take a Quest", "quest", aliases=("quest", "job")),
+                MenuOption("1", "Build or Upgrade Home", "house", aliases=("house", "build", "upgrade")),
+                MenuOption("2", "Family and Home", "family", aliases=("family", "home")),
+                MenuOption("3", "Garden and Craft", "garden", aliases=("garden", "farm", "craft")),
+                MenuOption("4", "Run Your Shop", "shop", aliases=("shop", "store")),
+                MenuOption("5", "Rebuild the Realm", "town", aliases=("town", "help", "realm")),
+                MenuOption("6", "Jobs Board", "quest", aliases=("quest", "job", "jobs")),
                 MenuOption("7", "Hold a Festival", "festival", aliases=("festival", "party")),
-                MenuOption("8", "Keep Adventuring", "adventure", aliases=("adventure", "wander")),
-                MenuOption("9", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
+                MenuOption("8", "Fish and Sail", "river", aliases=("fish", "river", "sail")),
+                MenuOption("9", "Train an Apprentice", "apprentice", aliases=("train", "apprentice")),
+                MenuOption("10", "Settlement Status", "status", aliases=("status", "settlement")),
+                MenuOption("11", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
             ],
             prompt="Postgame choice: ",
             subtitle="The realm is safe enough to live in now.",
         )
         if choice == "house":
-            say("\nYou buy land near the road and build a small house with a sturdy roof.", "scene")
-            player["money"] = max(0, player["money"] - 25)
-            say("You hang a lantern by the door and finally have a place to come back to.", "scene")
+            if not _postgame_has(player, "Postgame House"):
+                if _postgame_spend(player, 25):
+                    _postgame_add_once(player, "Postgame House")
+                    say("\nYou buy land near the road and build a small house with a sturdy roof.", "scene")
+                    say("You hang a lantern by the door and finally have a place to come back to.", "scene")
+            elif not _postgame_has(player, "Second Floor"):
+                if _postgame_spend(player, 60):
+                    _postgame_add_once(player, "Second Floor")
+                    say("\nYou add a second floor, a guest room, and a balcony facing the hills.", "scene")
+            else:
+                say("\nYou patch the roof, oil the hinges, and make the house a little nicer.", "scene")
         elif choice == "family":
-            say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.", "scene")
-            say("The house gets louder, warmer, and a lot more lived in.", "scene")
+            if not _postgame_has(player, "Postgame House"):
+                say("\nYou should build a home first.", "scene")
+            elif _postgame_add_once(player, "Family Hearth"):
+                say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.", "scene")
+                say("The house gets louder, warmer, and a lot more lived in.", "scene")
+            else:
+                say("\nYou spend the day at home cooking, telling stories, and fixing a mysteriously broken chair.", "scene")
         elif choice == "garden":
-            say("\nYou plant rows of vegetables behind the house and grow herbs for potions.", "scene")
+            _postgame_add_once(player, "Garden Patch")
+            player["backpack"].append("Potion Herbs")
+            say("\nYou tend the garden and harvest Potion Herbs.", "scene")
             say("The frog supervises the garden like it owns the property.", "scene")
         elif choice == "shop":
-            say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.", "scene")
-            player["money"] += 10
-            say("Travelers start leaving notes and odd little trinkets on the counter.", "scene")
+            if _postgame_add_once(player, "Hero Shop Ledger"):
+                say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.", "scene")
+            earnings = random.randint(8, 22)
+            player["money"] += earnings
+            say(f"Travelers buy supplies and leave {money_text(earnings)} on the counter.", "scene")
         elif choice == "town":
-            say("\nYou help repair roads, roofs, and the old bridge over the river.", "scene")
-            say("The village starts looking like a place people can grow old in.", "scene")
+            if _postgame_add_once(player, "Town Charter"):
+                say("\nYou help repair roads, roofs, and the old bridge over the river.", "scene")
+                say("The village starts looking like a place people can grow old in.", "scene")
+            elif _postgame_add_once(player, "Hero Statue"):
+                say("\nThe town builds a small statue of you. It looks almost, but not quite, like you.", "scene")
+            else:
+                say("\nYou spend the afternoon settling disputes, moving lumber, and signing very official papers.", "scene")
         elif choice == "quest":
+            reward = random.randint(10, 30)
+            player["money"] += reward
             outcome = random.choice([
                 "A farmer hires you to find three missing sheep. You return with four, because one tagged along.",
                 "The blacksmith asks for rare ore. You spend the afternoon in the hills and come back with a strange blue stone.",
                 "A child asks for a hero story. You make one up, then realize it is almost true.",
+                "A courier needs help crossing the old road. You escort them past three suspicious puddles.",
             ])
             say(f"\n{outcome}", "scene")
+            say(f"You earn {money_text(reward)}.", "scene")
         elif choice == "festival":
+            _postgame_add_once(player, "Festival Banner")
             say("\nYou help organize a town festival with lanterns, music, and too many pies.", "scene")
             say("By nightfall the whole valley feels warmer.", "scene")
+        elif choice == "river":
+            if _postgame_add_once(player, "Fishing Rod"):
+                say("\nYou carve a fishing rod and learn that hero work did not teach patience.", "scene")
+            elif _postgame_add_once(player, "River Boat"):
+                say("\nYou build a small river boat and map the bends beyond town.", "scene")
+            else:
+                catch = random.choice(["Silver Minnow", "Boot With Teeth Marks", "Tiny Treasure Chest"])
+                player["backpack"].append(catch)
+                say(f"\nYou fish until sunset and catch a {catch}.", "scene")
+        elif choice == "apprentice":
+            if _postgame_add_once(player, "Apprentice Badge"):
+                say("\nA young adventurer asks to train with you. You give them an Apprentice Badge.", "scene")
+            else:
+                say("\nYou teach your apprentice how to pack snacks, read maps, and run only when running helps.", "scene")
         elif choice == "adventure":
-            say("\nYou take one more walk into the hills and come back with stories nobody believes.", "scene")
+            find = random.choice(["Starlit Pebble", "Old Road Coin", "Map to Nowhere"])
+            player["backpack"].append(find)
+            say(f"\nYou take one more walk into the hills and return with a {find}.", "scene")
+        elif choice == "status":
+            _postgame_status(player)
         elif choice == "exit":
             _exit_game()
 

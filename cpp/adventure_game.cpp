@@ -1971,49 +1971,166 @@ void final_battle_scene(Player& player) {
     print_stats(player);
 }
 
+bool postgame_add_once(Player& player, const std::string& item) {
+    if (has_item(player, item)) {
+        return false;
+    }
+    player.backpack.push_back(item);
+    return true;
+}
+
+bool postgame_spend(Player& player, int amount) {
+    if (player.money < amount) {
+        say("\nYou need " + money_text(amount - player.money) + " more.");
+        return false;
+    }
+    player.money -= amount;
+    return true;
+}
+
+void postgame_status(const Player& player) {
+    static const std::vector<std::string> milestones = {
+        "Postgame House",
+        "Second Floor",
+        "Family Hearth",
+        "Garden Patch",
+        "Hero Shop Ledger",
+        "Town Charter",
+        "Fishing Rod",
+        "River Boat",
+        "Apprentice Badge",
+        "Festival Banner",
+        "Hero Statue",
+    };
+    std::vector<std::string> unlocked;
+    for (const std::string& item : milestones) {
+        if (has_item(player, item)) {
+            unlocked.push_back(item);
+        }
+    }
+    say("\nMoney: " + money_text(player.money));
+    if (unlocked.empty()) {
+        say("Settlement: nothing built yet");
+    } else {
+        std::ostringstream out;
+        for (std::size_t i = 0; i < unlocked.size(); ++i) {
+            if (i > 0) {
+                out << ", ";
+            }
+            out << unlocked[i];
+        }
+        say("Settlement: " + out.str());
+    }
+}
+
 void postgame_menu(Player& player) {
     while (true) {
         std::string choice = choose_menu("Postgame", {
-            {"1", "Build a House", "house", "", {"house", "build"}},
-            {"2", "Start a Family", "family", "", {"family", "home"}},
-            {"3", "Garden", "garden", "", {"garden", "farm"}},
-            {"4", "Open a Shop", "shop", "", {"shop", "store"}},
-            {"5", "Help the Town", "town", "", {"town", "help"}},
-            {"6", "Take a Quest", "quest", "", {"quest", "job"}},
+            {"1", "Build or Upgrade Home", "house", "", {"house", "build", "upgrade"}},
+            {"2", "Family and Home", "family", "", {"family", "home"}},
+            {"3", "Garden and Craft", "garden", "", {"garden", "farm", "craft"}},
+            {"4", "Run Your Shop", "shop", "", {"shop", "store"}},
+            {"5", "Rebuild the Realm", "town", "", {"town", "help", "realm"}},
+            {"6", "Jobs Board", "quest", "", {"quest", "job", "jobs"}},
             {"7", "Hold a Festival", "festival", "", {"festival", "party"}},
-            {"8", "Keep Adventuring", "adventure", "", {"adventure", "wander"}},
-            {"9", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
+            {"8", "Fish and Sail", "river", "", {"fish", "river", "sail"}},
+            {"9", "Train an Apprentice", "apprentice", "", {"train", "apprentice"}},
+            {"10", "Settlement Status", "status", "", {"status", "settlement"}},
+            {"11", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
         }, "Postgame choice: ", "The realm is safe enough to live in now.");
 
         if (choice == "house") {
-            say("\nYou buy land near the road and build a small house with a sturdy roof.");
-            player.money = std::max(0, player.money - 25);
-            say("You hang a lantern by the door and finally have a place to come back to.");
+            if (!has_item(player, "Postgame House")) {
+                if (postgame_spend(player, 25)) {
+                    postgame_add_once(player, "Postgame House");
+                    say("\nYou buy land near the road and build a small house with a sturdy roof.");
+                    say("You hang a lantern by the door and finally have a place to come back to.");
+                }
+            } else if (!has_item(player, "Second Floor")) {
+                if (postgame_spend(player, 60)) {
+                    postgame_add_once(player, "Second Floor");
+                    say("\nYou add a second floor, a guest room, and a balcony facing the hills.");
+                }
+            } else {
+                say("\nYou patch the roof, oil the hinges, and make the house a little nicer.");
+            }
         } else if (choice == "family") {
-            say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.");
-            say("The house gets louder, warmer, and a lot more lived in.");
+            if (!has_item(player, "Postgame House")) {
+                say("\nYou should build a home first.");
+            } else if (postgame_add_once(player, "Family Hearth")) {
+                say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.");
+                say("The house gets louder, warmer, and a lot more lived in.");
+            } else {
+                say("\nYou spend the day at home cooking, telling stories, and fixing a mysteriously broken chair.");
+            }
         } else if (choice == "garden") {
-            say("\nYou plant rows of vegetables behind the house and grow herbs for potions.");
+            postgame_add_once(player, "Garden Patch");
+            player.backpack.push_back("Potion Herbs");
+            say("\nYou tend the garden and harvest Potion Herbs.");
             say("The frog supervises the garden like it owns the property.");
         } else if (choice == "shop") {
-            say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.");
-            player.money += 10;
-            say("Travelers start leaving notes and odd little trinkets on the counter.");
+            if (postgame_add_once(player, "Hero Shop Ledger")) {
+                say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.");
+            }
+            int earnings = random_int(8, 22);
+            player.money += earnings;
+            say("Travelers buy supplies and leave " + money_text(earnings) + " on the counter.");
         } else if (choice == "town") {
-            say("\nYou help repair roads, roofs, and the old bridge over the river.");
-            say("The village starts looking like a place people can grow old in.");
+            if (postgame_add_once(player, "Town Charter")) {
+                say("\nYou help repair roads, roofs, and the old bridge over the river.");
+                say("The village starts looking like a place people can grow old in.");
+            } else if (postgame_add_once(player, "Hero Statue")) {
+                say("\nThe town builds a small statue of you. It looks almost, but not quite, like you.");
+            } else {
+                say("\nYou spend the afternoon settling disputes, moving lumber, and signing very official papers.");
+            }
         } else if (choice == "quest") {
+            int reward = random_int(10, 30);
+            player.money += reward;
             static const std::vector<std::string> outcomes = {
                 "A farmer hires you to find three missing sheep. You return with four, because one tagged along.",
                 "The blacksmith asks for rare ore. You spend the afternoon in the hills and come back with a strange blue stone.",
                 "A child asks for a hero story. You make one up, then realize it is almost true.",
+                "A courier needs help crossing the old road. You escort them past three suspicious puddles.",
             };
             say("\n" + outcomes[random_int(0, static_cast<int>(outcomes.size()) - 1)]);
+            say("You earn " + money_text(reward) + ".");
         } else if (choice == "festival") {
+            postgame_add_once(player, "Festival Banner");
             say("\nYou help organize a town festival with lanterns, music, and too many pies.");
             say("By nightfall the whole valley feels warmer.");
+        } else if (choice == "river") {
+            if (postgame_add_once(player, "Fishing Rod")) {
+                say("\nYou carve a fishing rod and learn that hero work did not teach patience.");
+            } else if (postgame_add_once(player, "River Boat")) {
+                say("\nYou build a small river boat and map the bends beyond town.");
+            } else {
+                static const std::vector<std::string> catches = {
+                    "Silver Minnow",
+                    "Boot With Teeth Marks",
+                    "Tiny Treasure Chest",
+                };
+                std::string caught = random_choice(catches);
+                player.backpack.push_back(caught);
+                say("\nYou fish until sunset and catch a " + caught + ".");
+            }
+        } else if (choice == "apprentice") {
+            if (postgame_add_once(player, "Apprentice Badge")) {
+                say("\nA young adventurer asks to train with you. You give them an Apprentice Badge.");
+            } else {
+                say("\nYou teach your apprentice how to pack snacks, read maps, and run only when running helps.");
+            }
         } else if (choice == "adventure") {
-            say("\nYou take one more walk into the hills and come back with stories nobody believes.");
+            static const std::vector<std::string> finds = {
+                "Starlit Pebble",
+                "Old Road Coin",
+                "Map to Nowhere",
+            };
+            std::string found = random_choice(finds);
+            player.backpack.push_back(found);
+            say("\nYou take one more walk into the hills and return with a " + found + ".");
+        } else if (choice == "status") {
+            postgame_status(player);
         } else if (choice == "exit") {
             return;
         }
