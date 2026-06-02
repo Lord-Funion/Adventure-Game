@@ -39,7 +39,7 @@ def normalize_choice(value):
 
 def divider(title):
     """Print a compact section title."""
-    print(f"\n=== {title} ===")
+    print(f"\n{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}=== {title} ==={Style.RESET_ALL}")
 
 
 def stat_meter(current, maximum, width=16):
@@ -379,6 +379,29 @@ def _read_clickable(prompt, targets=None, inline_choices=None):
         return typed_ask(prompt)
 
 
+def _colored_option_line(option):
+    if not option.enabled:
+        line = f"{option.key}. {option.label}"
+        if option.detail:
+            line += f" - {option.detail}"
+        if option.status:
+            line += f" ({option.status})"
+        return f"{Style.DIM}{line}{Style.RESET_ALL}"
+
+    line = (
+        f"{Fore.LIGHTCYAN_EX}{option.key}{Style.RESET_ALL}. "
+        f"{Style.BRIGHT}{Fore.LIGHTGREEN_EX}{option.label}{Style.RESET_ALL}"
+    )
+    if option.detail:
+        detail = option.detail
+        if "\033[" not in detail:
+            detail = f"{Fore.LIGHTWHITE_EX}{detail}{Style.RESET_ALL}"
+        line += f" - {detail}"
+    if option.status:
+        line += f" ({Fore.LIGHTYELLOW_EX}{option.status}{Style.RESET_ALL})"
+    return line
+
+
 def choose_menu(title, options, prompt="Choose: ", subtitle=None, invalid=None):
     """Render a menu until the player chooses an enabled option."""
     invalid = invalid or "\nPlease choose one of the listed options."
@@ -404,9 +427,7 @@ def choose_menu(title, options, prompt="Choose: ", subtitle=None, invalid=None):
             if current_row is not None:
                 option_targets.append(_line_target(current_row, line, option.key))
                 rows_used = _display_rows(line)
-            if not option.enabled:
-                line = f"{Style.DIM}{line}{Style.RESET_ALL}"
-            print(line)
+            print(_colored_option_line(option))
             if current_row is not None:
                 current_row += rows_used
 

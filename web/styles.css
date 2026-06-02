@@ -10,6 +10,7 @@
   --terminal-magenta: #ff87ff;
   --terminal-green: #87ff87;
   --terminal-yellow: #ffd75f;
+  --terminal-white: #ffffff;
 }
 
 * {
@@ -60,8 +61,13 @@ body {
 .terminal-choice:hover,
 .terminal-choice:focus-visible {
   background: #1a1a1a;
-  color: #ffffff;
+  color: var(--terminal-white);
   outline: 0;
+}
+
+.terminal-choice:hover *,
+.terminal-choice:focus-visible * {
+  color: inherit;
 }
 
 .terminal-choice:active {
@@ -79,6 +85,10 @@ body {
 
 .terminal-input-form {
   display: inline;
+}
+
+.terminal-prompt {
+  color: var(--terminal-cyan);
 }
 
 .terminal-inline-choices {
@@ -152,6 +162,10 @@ body {
 
 .yellow {
   color: var(--terminal-yellow);
+}
+
+.white {
+  color: var(--terminal-white);
 }
 
 .dim {
