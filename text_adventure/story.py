@@ -12,7 +12,7 @@ from . import cloud_saves
 from .combat import GameOver, game_over, spell_fight
 from .logo import show_startup_logo
 from .pacing import ask, say
-from .player import add_spell, create_player, offer_potions, print_stats
+from .player import activate_frog_partner, add_frog_attack, add_spell, create_player, offer_potions, print_stats
 from .save_system import (
     SaveError,
     default_save_path,
@@ -25,10 +25,11 @@ from .save_system import (
 )
 from .shop import run_shop
 from .terminal_colors import Fore, Style
-from .ui import MenuOption, ask_choice, choose_menu
+from .ui import MenuOption, ask_choice, choose_menu, money_text
 
 
 FINISHED_SCENE = "finished"
+EXIT_LABEL = "Exit Game"
 SCENE_ORDER = (
     "intro",
     "wizard",
@@ -38,6 +39,15 @@ SCENE_ORDER = (
     "forest",
     "twin_doors",
     "witch",
+    "mountain_pass",
+    "moonlit_market",
+    "vampire_castle",
+    "false_throne",
+    "underkeep",
+    "clocktower",
+    "well",
+    "dragon_gate",
+    "final_battle",
 )
 SCENE_TITLES = {
     "intro": "Chocolate Frog",
@@ -48,8 +58,26 @@ SCENE_TITLES = {
     "forest": "Forest Trail",
     "twin_doors": "Twin Doors",
     "witch": "Witch",
+    "mountain_pass": "Mountain Pass",
+    "moonlit_market": "Moonlit Market",
+    "vampire_castle": "Vampire Castle",
+    "false_throne": "False Throne",
+    "underkeep": "Underkeep",
+    "clocktower": "Clocktower",
+    "well": "Old Well",
+    "dragon_gate": "Dragon Gate",
+    "final_battle": "Final Battle",
     FINISHED_SCENE: "Finished Game",
 }
+
+
+class ExitGame(SystemExit):
+    """Raised when the player chooses an explicit terminal Exit option."""
+
+
+def _exit_game():
+    say("\nGoodbye.", "quick")
+    raise ExitGame(0)
 
 
 def yes_no(prompt):
@@ -93,8 +121,25 @@ def _create_shop_stock():
         "Arcane Blast": True,
         "Thunderstorm": True,
         "Restoration Incantation": True,
+        "Frost Nova": True,
+        "Solar Beam": True,
+        "Life Bloom": True,
         "Glorious Helmet": True,
         "Mage Boots": True,
+        "Crystal Sword": True,
+        "Phoenix Feather": True,
+        "Dragon Scale Shield": True,
+        "Star Cloak": True,
+        "Croak Fu Primer": True,
+        "Bubble Burp Codex": True,
+        "Royal Croak Sheet Music": True,
+        "Snack Break Cookbook": True,
+        "Moon Leap Manual": True,
+        "Golden Fly Protein": True,
+        "Dragonfly Tactics": True,
+        "Clockwork Compass": True,
+        "Old Bell Manual": True,
+        "Well Whisper Notes": True,
     }
 
 
@@ -129,6 +174,12 @@ def _normalize_string_list(value, name):
     return list(value)
 
 
+def _normalize_bool(value, name):
+    if not isinstance(value, bool):
+        raise SaveError(f"Save field '{name}' is not a valid true/false value.")
+    return value
+
+
 def _normalize_state(raw_state):
     if not isinstance(raw_state, dict):
         raise SaveError("The save does not contain game state.")
@@ -138,10 +189,36 @@ def _normalize_state(raw_state):
         raise SaveError("The save does not contain a valid player.")
 
     player = create_player()
-    for key in ("money", "health", "healthMax", "mana", "manaMax", "armor", "extraDamage"):
+    name = raw_player.get("name", player["name"])
+    if not isinstance(name, str):
+        raise SaveError("Save field 'name' is not valid text.")
+    player["name"] = " ".join(name.split()) or "Adventurer"
+
+    for key in (
+        "money",
+        "health",
+        "healthMax",
+        "mana",
+        "manaMax",
+        "armor",
+        "weaponDamage",
+        "extraDamage",
+        "frogPower",
+        "frogEnergy",
+        "frogEnergyMax",
+    ):
         player[key] = _normalize_int(raw_player.get(key, player[key]), key)
+    player["frogMode"] = _normalize_bool(raw_player.get("frogMode", player["frogMode"]), "frogMode")
     player["backpack"] = _normalize_string_list(raw_player.get("backpack", []), "backpack")
     player["spells"] = _normalize_string_list(raw_player.get("spells", []), "spells")
+    player["frogAttacks"] = _normalize_string_list(
+        raw_player.get("frogAttacks", player["frogAttacks"]),
+        "frogAttacks",
+    )
+    if "Magic Wand" not in player["backpack"] and "Magical Chocolate Frog" in player["backpack"]:
+        activate_frog_partner(player)
+    if player["frogMode"] and not player["frogAttacks"]:
+        add_frog_attack(player, "Tongue Slap")
 
     raw_stock = raw_state.get("shop_stock", {})
     if not isinstance(raw_stock, dict):
@@ -324,6 +401,14 @@ def _cloud_load_interactive():
             aliases=("back", "cancel"),
         )
     )
+    options.append(
+        MenuOption(
+            str(len(options) + 1),
+            EXIT_LABEL,
+            "exit",
+            aliases=("exit", "quit", "q"),
+        )
+    )
 
     slot_name = choose_menu(
         "Load Cloud Save",
@@ -333,6 +418,8 @@ def _cloud_load_interactive():
     )
     if slot_name == "back":
         return None
+    if slot_name == "exit":
+        _exit_game()
 
     try:
         response = cloud_saves.download_save(slot_name)
@@ -389,6 +476,12 @@ def _cloud_menu(current_state=None):
                         "back",
                         aliases=("back", "cancel"),
                     ),
+                    MenuOption(
+                        str(next_key + 3),
+                        EXIT_LABEL,
+                        "exit",
+                        aliases=("exit", "quit", "q"),
+                    ),
                 ]
             )
         else:
@@ -397,6 +490,7 @@ def _cloud_menu(current_state=None):
                     MenuOption("1", "Create Account", "register", aliases=("register", "create")),
                     MenuOption("2", "Sign In", "login", aliases=("login", "sign in")),
                     MenuOption("3", "Back", "back", aliases=("back", "cancel")),
+                    MenuOption("4", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
                 ]
             )
 
@@ -422,6 +516,8 @@ def _cloud_menu(current_state=None):
             say("\nSigned out of cloud saves on this device.", "quick")
         elif choice == "back":
             return None
+        elif choice == "exit":
+            _exit_game()
 
 
 def _load_state_interactive():
@@ -457,6 +553,14 @@ def _load_state_interactive():
                 aliases=("back", "cancel"),
             )
         )
+        options.append(
+            MenuOption(
+                str(len(options) + 1),
+                EXIT_LABEL,
+                "exit",
+                aliases=("exit", "quit", "q"),
+            )
+        )
 
         choice = choose_menu(
             "Load Game",
@@ -466,6 +570,8 @@ def _load_state_interactive():
         )
         if choice == "back":
             return None
+        if choice == "exit":
+            _exit_game()
         if choice == "custom":
             typed_path = ask("\nSave file path: ")
             if not typed_path:
@@ -516,6 +622,7 @@ def _checkpoint_menu(state):
                 MenuOption("3", "Load Game", "load", aliases=("load", "l")),
                 MenuOption("4", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
                 MenuOption("5", "Player Stats", "stats", aliases=("stats", "status")),
+                MenuOption("6", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
             ],
             prompt="Checkpoint choice: ",
             subtitle=subtitle,
@@ -535,6 +642,8 @@ def _checkpoint_menu(state):
                 return loaded_state
         elif choice == "stats":
             print_stats(state["player"])
+        elif choice == "exit":
+            _exit_game()
 
 
 def _run_scene(scene_id, player, shop_stock):
@@ -555,18 +664,85 @@ def _run_scene(scene_id, player, shop_stock):
         twin_doors_scene(player)
     elif scene_id == "witch":
         witch_scene(player)
+    elif scene_id == "mountain_pass":
+        mountain_pass_scene(player)
+    elif scene_id == "moonlit_market":
+        moonlit_market_scene(player, shop_stock)
+    elif scene_id == "vampire_castle":
+        vampire_castle_scene(player)
+    elif scene_id == "false_throne":
+        false_throne_scene(player, shop_stock)
+    elif scene_id == "underkeep":
+        underkeep_scene(player)
+    elif scene_id == "clocktower":
+        clocktower_scene(player, shop_stock)
+    elif scene_id == "well":
+        well_scene(player)
+    elif scene_id == "dragon_gate":
+        dragon_gate_scene(player, shop_stock)
+    elif scene_id == "final_battle":
+        final_battle_scene(player)
     else:
         raise SaveError("Unknown story checkpoint.")
 
 
 def _finish_game(player):
-    say("\nYou make it through the corridor alive. The road ahead is finally quiet.", "scene")
-    say(
-        "\nAdventure Game is still currently being developed by "
-        "Thunderstruck7 and Lord Funion. Check back later for more.",
-        "scene",
-    )
+    say("\nLord Dreadbiscuit's castle crumbles into a suspiciously buttery pile of crumbs.", "scene")
+    say(f"\nGood job, {player.get('name', 'Adventurer')}, you have completed the game.", "scene")
+    say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.", "scene")
     say(f"\nTHE END\nYou finished with {Fore.YELLOW}${player['money']}{Style.RESET_ALL}.", "none")
+    _postgame_menu(player)
+
+
+def _postgame_menu(player):
+    while True:
+        choice = choose_menu(
+            "Postgame",
+            [
+                MenuOption("1", "Build a House", "house", aliases=("house", "build")),
+                MenuOption("2", "Start a Family", "family", aliases=("family", "home")),
+                MenuOption("3", "Garden", "garden", aliases=("garden", "farm")),
+                MenuOption("4", "Open a Shop", "shop", aliases=("shop", "store")),
+                MenuOption("5", "Help the Town", "town", aliases=("town", "help")),
+                MenuOption("6", "Take a Quest", "quest", aliases=("quest", "job")),
+                MenuOption("7", "Hold a Festival", "festival", aliases=("festival", "party")),
+                MenuOption("8", "Keep Adventuring", "adventure", aliases=("adventure", "wander")),
+                MenuOption("9", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
+            ],
+            prompt="Postgame choice: ",
+            subtitle="The realm is safe enough to live in now.",
+        )
+        if choice == "house":
+            say("\nYou buy land near the road and build a small house with a sturdy roof.", "scene")
+            player["money"] = max(0, player["money"] - 25)
+            say("You hang a lantern by the door and finally have a place to come back to.", "scene")
+        elif choice == "family":
+            say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.", "scene")
+            say("The house gets louder, warmer, and a lot more lived in.", "scene")
+        elif choice == "garden":
+            say("\nYou plant rows of vegetables behind the house and grow herbs for potions.", "scene")
+            say("The frog supervises the garden like it owns the property.", "scene")
+        elif choice == "shop":
+            say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.", "scene")
+            player["money"] += 10
+            say("Travelers start leaving notes and odd little trinkets on the counter.", "scene")
+        elif choice == "town":
+            say("\nYou help repair roads, roofs, and the old bridge over the river.", "scene")
+            say("The village starts looking like a place people can grow old in.", "scene")
+        elif choice == "quest":
+            outcome = random.choice([
+                "A farmer hires you to find three missing sheep. You return with four, because one tagged along.",
+                "The blacksmith asks for rare ore. You spend the afternoon in the hills and come back with a strange blue stone.",
+                "A child asks for a hero story. You make one up, then realize it is almost true.",
+            ])
+            say(f"\n{outcome}", "scene")
+        elif choice == "festival":
+            say("\nYou help organize a town festival with lanterns, music, and too many pies.", "scene")
+            say("By nightfall the whole valley feels warmer.", "scene")
+        elif choice == "adventure":
+            say("\nYou take one more walk into the hills and come back with stories nobody believes.", "scene")
+        elif choice == "exit":
+            _exit_game()
 
 
 def _run_story(state):
@@ -577,10 +753,6 @@ def _run_story(state):
             return
 
         _run_scene(scene_id, state["player"], state["shop_stock"])
-
-        if scene_id == "wizard" and "Magic Wand" not in state["player"]["backpack"]:
-            say("\nWithout a magic wand, your adventure ends here. Better luck next time!", "scene")
-            return
 
         state["next_scene"] = _next_scene(scene_id)
         if state["next_scene"] == FINISHED_SCENE:
@@ -605,6 +777,7 @@ def _restart_menu():
         [
             MenuOption("1", "Restart", "restart", aliases=("restart", "r", "new game", "new")),
             MenuOption("2", "Main Menu", "main", aliases=("main", "menu", "m")),
+            MenuOption("3", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
         ],
         prompt="Game over choice: ",
     )
@@ -633,6 +806,8 @@ def run_game(load_path=None):
                 if choice == "main":
                     show_startup_logo()
                     break
+                if choice == "exit":
+                    _exit_game()
 
     mode = "menu"
     while True:
@@ -648,6 +823,8 @@ def run_game(load_path=None):
                 elif choice == "main":
                     show_startup_logo()
                     mode = "menu"
+                elif choice == "exit":
+                    _exit_game()
                 continue
 
         try:
@@ -660,6 +837,8 @@ def run_game(load_path=None):
             elif choice == "main":
                 show_startup_logo()
                 mode = "menu"
+            elif choice == "exit":
+                _exit_game()
             continue
         if state is None:
             continue
@@ -674,6 +853,8 @@ def run_game(load_path=None):
             elif choice == "main":
                 show_startup_logo()
                 mode = "menu"
+            elif choice == "exit":
+                _exit_game()
 
 
 def _main_menu_state():
@@ -684,6 +865,7 @@ def _main_menu_state():
                 MenuOption("1", "New Game", "new", aliases=("new", "start")),
                 MenuOption("2", "Load Game", "load", aliases=("load", "continue")),
                 MenuOption("3", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
+                MenuOption("4", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
             ],
             prompt="Main menu choice: ",
         )
@@ -698,10 +880,14 @@ def _main_menu_state():
             state = _cloud_menu()
             if state is not None:
                 return state
+        if choice == "exit":
+            _exit_game()
 
 
 def intro_scene(player):
     """The player finds the frog that starts the adventure."""
+    name = ask("\nWhat is your adventurer name? ")
+    player["name"] = " ".join(name.split()) or "Adventurer"
     say("\nYou are out on a casual stroll when a magical chocolate frog hops around your feet.")
 
     choice = yes_no("\nDo you pick it up? (yes/no): ")
@@ -716,19 +902,24 @@ def intro_scene(player):
 
 
 def wizard_scene(player):
-    """Trade the frog for the wand and door spell."""
+    """Trade the frog for the wand, or keep it as a battle companion."""
     say("\nYou bump into an old man with a long white beard.")
     say('"Was that the croak of a chocolate frog?" he asks.', "beat")
 
     choice = yes_no("\nWhat do you say? (yes/no): ")
     if choice == "no":
         say("\nHis old hearing must be failing him. He wanders off.")
+        activate_frog_partner(player)
+        say("The frog gives you a tiny nod. It looks ready to fight for itself.", "beat")
         return
 
     say("\nHe smiles. \"I am Rumblerod The Great, the only remaining wizard in the North.\"")
     trade = yes_no("\nTrade the frog for his spare magic wand? (yes/no): ")
     if trade == "no":
         say("\nRumblerod shrugs and continues down the path.")
+        activate_frog_partner(player)
+        say("The frog hops onto your shoulder and learns Tongue Slap out of spite.", "beat")
+        print_stats(player)
         return
 
     player["backpack"].remove("Magical Chocolate Frog")
@@ -746,13 +937,22 @@ def locked_door_scene(player):
         say("\nYou notice a locked door on the left and decide not to miss it.")
 
     amount = random.randint(20, 30)
-    choice = yes_no("\nYou find a locked door. Use the wand and say the words? (yes/no): ")
+    if player.get("frogMode"):
+        choice = yes_no("\nYou find a locked door. Send the frog through the keyhole? (yes/no): ")
+    else:
+        choice = yes_no("\nYou find a locked door. Use the wand and say the words? (yes/no): ")
     if choice == "no":
         say("\nA goblin sneaks up behind you and stabs you.", "beat")
         game_over(player)
 
     player["money"] += amount
-    say(f"\nYou say Lockio Reducto. The door opens and you find ${amount}.", "beat")
+    if player.get("frogMode"):
+        say(
+            f"\nThe frog squeezes under the door, unlocks it, and looks smug. You find ${amount}.",
+            "beat",
+        )
+    else:
+        say(f"\nYou say Lockio Reducto. The door opens and you find ${amount}.", "beat")
     print_stats(player)
 
 
@@ -773,13 +973,18 @@ def first_goblin_scene(player):
         prompt="Move: ",
     )
 
-    add_spell(player, "Fireball")
     if attack == "dirt":
         say("\nThe dirt blinds the goblin long enough for you to knock it out.")
     else:
         say(f"\nYour {attack} knocks out the goblin.")
-    say("It drops a page from a spell book.", "beat")
-    say("You learned Fireball.")
+    if player.get("frogMode"):
+        add_frog_attack(player, "Bubble Burp")
+        say("It drops a page from a frog-training book.", "beat")
+        say("The frog eats half the page and learns Bubble Burp.")
+    else:
+        add_spell(player, "Fireball")
+        say("It drops a page from a spell book.", "beat")
+        say("You learned Fireball.")
     print_stats(player)
 
 
@@ -797,6 +1002,13 @@ def village_scene(player, shop_stock):
     player["backpack"].append("Big Health Potion")
     print_stats(player)
     offer_potions(player)
+
+    hidden = ask("\nBefore you leave, the cobblestones seem to whisper. Type what you heard or press Enter: ")
+    if hidden.strip().lower() == "listen":
+        say("\nA loose brick slides aside and reveals a narrow ladder.", "beat")
+        clocktower_scene(player, shop_stock)
+    elif hidden.strip().lower() == "well":
+        well_scene(player)
 
     enter_store = yes_no("\nYou see Harold Sellsalot's General Store. Go inside? (yes/no): ")
     if enter_store == "no":
@@ -833,13 +1045,20 @@ def forest_scene(player, shop_stock):
 
     say("\nAt the forest edge, Miss Costalot waves you over to her traveling cart.")
     run_shop(player, shop_stock, advanced=True)
+    if ask("\nA mossy sign points off the road. Type 'detour' to ignore it, or press Enter: ").strip().lower() == "detour":
+        say("\nYou push through nettles and find a forgotten well.", "beat")
+        well_scene(player)
 
 
 def twin_doors_scene(player):
     """Handle the left/right door branch and converge back to the main path."""
     say("\nYou find two locked doors at the end of the road.")
-    door = choose_left_or_right("\nDo you use the wand on the left or the right door? ")
-    say("\nYou say Lockio Reducto and the door opens.", "beat")
+    if player.get("frogMode"):
+        door = choose_left_or_right("\nDo you send the frog to the left or the right door? ")
+        say("\nThe frog shoulder-checks the lock until the door gives up.", "beat")
+    else:
+        door = choose_left_or_right("\nDo you use the wand on the left or the right door? ")
+        say("\nYou say Lockio Reducto and the door opens.", "beat")
 
     if door == "left":
         say("\nThe left door leads to a dead end guarded by an ogre.")
@@ -866,7 +1085,7 @@ def twin_doors_scene(player):
 
 
 def witch_scene(player):
-    """Final current encounter."""
+    """Fight the witch guarding the way to the mountains."""
     say("\nYou continue down the corridor.")
     if fight_or_run("\nYou see a witch. Do you fight or run? ") == "run":
         say("\nYou run into the ogre's dad, who is very angry with you.", "beat")
@@ -874,3 +1093,161 @@ def witch_scene(player):
 
     spell_fight("witch", player)
     offer_potions(player)
+
+
+def mountain_pass_scene(player):
+    """Climb toward the final valley and meet colder trouble."""
+    say("\nPast the witch's corridor, the road climbs into a mountain pass.")
+    say("A sign reads: FINAL CASTLE THIS WAY. Under it, someone wrote: probably.", "beat")
+    if fight_or_run("\nAn ice goblin rolls down the hill at you. Do you fight or run? ") == "run":
+        say("\nYou try to run downhill, which works until the hill runs out.", "beat")
+        game_over(player)
+
+    spell_fight("ice goblin", player)
+    reward = random.randint(35, 50)
+    player["money"] += reward
+    player["backpack"].append("Moon Cheese")
+    say(f"\nThe ice goblin's lunchbox pops open. You find {money_text(reward)} and some Moon Cheese.")
+    print_stats(player)
+    offer_potions(player)
+
+
+def moonlit_market_scene(player, shop_stock):
+    """A late-game market with weapons and stranger magic."""
+    say("\nAt the top of the pass, paper lanterns glow over the Moonlit Market.")
+    say('A merchant named Madam Probably says, "Everything here is almost safe."', "beat")
+    run_shop(player, shop_stock, advanced=True)
+
+    say("\nBehind the last stall, a shadow knight blocks the castle road.")
+    if fight_or_run() == "run":
+        say("\nThe knight sighs, walks faster than you, and bonks you with the flat of a gloomy sword.", "beat")
+        game_over(player)
+    spell_fight("shadow knight", player)
+    player["money"] += 30
+    say(f"\nThe shadow knight drops {money_text(30)} and a note that says: please stop Lord Dreadbiscuit.")
+    print_stats(player)
+    offer_potions(player)
+    secret = ask("\nA vendor drops a receipt. Type the first word printed in tiny ink, or press Enter: ")
+    if secret.strip().lower() == "clock":
+        say("\nThe receipt opens a seam in the market wall.", "beat")
+        clocktower_scene(player, shop_stock)
+
+
+def vampire_castle_scene(player):
+    """Sneak through the vampire castle and steal the final key."""
+    say("\nYou reach a castle shaped like a fancy tooth.")
+    say("Inside, a vampire is practicing scary faces in a mirror that refuses to help.", "beat")
+    if fight_or_run("\nThe vampire notices you. Do you fight or run? ") == "run":
+        say("\nYou run into a closet full of capes. The capes win.", "beat")
+        game_over(player)
+
+    spell_fight("vampire", player)
+    player["backpack"].append("Silver Key of Mild Concern")
+    player["money"] += 40
+    say(f"\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus {money_text(40)}.")
+    say("The key is real, but the real castle keeps moving farther away.", "beat")
+    print_stats(player)
+    offer_potions(player)
+
+
+def false_throne_scene(player, shop_stock):
+    """A long detour that looks like the end and is not the end."""
+    say("\nThe Silver Key opens a hall with a throne made of polished cookies.")
+    say("A herald in a paper crown announces that the final castle is 'just ahead' again.", "beat")
+    if fight_or_run("\nA mirrored knight steps out of the throne room. Fight or run? ") == "run":
+        say("\nYou run, but the hallway keeps becoming longer behind you.", "beat")
+        game_over(player)
+
+    spell_fight("shadow knight", player)
+    reward = random.randint(20, 35)
+    player.money += reward
+    say(f"\nBehind the false throne, you find {money_text(reward)} and a stairway that goes down.")
+    print_stats(player)
+    offer_potions(player)
+    run_shop(player, shop_stock, advanced=True)
+
+
+def underkeep_scene(player):
+    """The road down under the castle before the real last gate."""
+    say("\nThe stairway leads under the castle into a damp underkeep.")
+    say("A sleepy archivist says the princess is not here, then stamps your map with 'TRY AGAIN'.", "beat")
+    if fight_or_run("\nA chained ogre blocks the only tunnel. Fight or run? ") == "run":
+        say("\nYou run into a wall of old bricks and lose the argument.", "beat")
+        game_over(player)
+
+    spell_fight("ogre", player)
+    player["backpack"].append("Ancient Map Fragment")
+    player["money"] += 25
+    say("\nThe ogre drops an Ancient Map Fragment and a small pouch of coins.")
+    say("The fragment points deeper underground, because of course it does.", "beat")
+    print_stats(player)
+    offer_potions(player)
+    if ask("\nThe tunnel breathes once. Type 'deeper' to keep going, or press Enter: ").strip().lower() == "deeper":
+        say("\nYou slip into a maintenance passage that should not exist.", "beat")
+        well_scene(player)
+
+
+def clocktower_scene(player, shop_stock):
+    """A hidden side path with a slow clockwork quest."""
+    say("\nA narrow stair climbs into a clocktower nobody mentioned.")
+    say("Each floor is quieter than the last, as if the tower is trying not to be found.", "beat")
+    if fight_or_run("\nA brass sentinel blocks the gears. Fight or run? ") == "run":
+        say("\nYou run, but the tower ticks its way into your path again.", "beat")
+        game_over(player)
+
+    spell_fight("shadow knight", player)
+    player["money"] += 20
+    player["backpack"].append("Clockwork Cog")
+    say("\nThe sentinel drops a Clockwork Cog and the tower keeps turning anyway.")
+    print_stats(player)
+    offer_potions(player)
+    run_shop(player, shop_stock, advanced=True)
+
+
+def well_scene(player):
+    """A tiny hidden quest that looks like nothing."""
+    say("\nYou find an old well behind a fence that should not be easy to notice.")
+    say("Something from below taps back twice, waits, then once more.", "beat")
+    choice = yes_no("\nLean over and listen again? (yes/no): ")
+    if choice == "no":
+        say("\nThe well stays quiet, which is somehow worse.", "beat")
+        return
+    player["backpack"].append("Well Water")
+    player["money"] += 7
+    say("\nA bucket rises with seven coins and a bottle of cold well water.")
+    print_stats(player)
+
+
+def dragon_gate_scene(player, shop_stock):
+    """Prepare at the dragon forge and open the last gate."""
+    say("\nThe Silver Key fits a gate made of old dragon scales.")
+    say("Next to it, two blacksmiths argue over whether anvils count as musical instruments.")
+    say('They call their shop The Dragon Forge and offer one last chance to gear up.', "beat")
+    run_shop(player, shop_stock, advanced=True, legendary=True)
+
+    say("\nWhen you unlock the gate, a crystal dragon wakes up and sneezes rainbows everywhere.")
+    if fight_or_run("\nDo you fight the crystal dragon or run? ") == "run":
+        say("\nYou run. The dragon thinks this is fetch.", "beat")
+        game_over(player)
+
+    spell_fight("crystal dragon", player)
+    player["backpack"].append("Dragon Scale Chip")
+    player["money"] += 60
+    say(f"\nThe dragon bows, gives you a Dragon Scale Chip, and pushes {money_text(60)} into your hands.")
+    say("You are sure this must be the last thing. It is not the last thing.", "beat")
+    print_stats(player)
+    offer_potions(player)
+
+
+def final_battle_scene(player):
+    """Face the villain and complete the adventure."""
+    say("\nBeyond the gate stands Lord Dreadbiscuit, wearing a crown far too small for his ego.")
+    say('"At last," he says, "someone has come to challenge my mildly inconvenient darkness."', "beat")
+    if fight_or_run("\nDo you fight Lord Dreadbiscuit or run? ") == "run":
+        say("\nYou turn around and step on a cursed cookie crumb.", "beat")
+        game_over(player)
+
+    spell_fight("lord dreadbiscuit", player)
+    say("\nLord Dreadbiscuit wobbles, crumbles, and apologizes to everyone he has inconvenienced.")
+    say("Rumblerod appears from behind a curtain and insists he was helping invisibly the whole time.", "beat")
+    print_stats(player)

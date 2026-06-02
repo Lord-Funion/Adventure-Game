@@ -21,6 +21,10 @@
     "mountain_pass",
     "moonlit_market",
     "vampire_castle",
+    "false_throne",
+    "underkeep",
+    "clocktower",
+    "well",
     "dragon_gate",
     "final_battle",
   ];
@@ -36,6 +40,10 @@
     mountain_pass: "Mountain Pass",
     moonlit_market: "Moonlit Market",
     vampire_castle: "Vampire Castle",
+    false_throne: "False Throne",
+    underkeep: "Underkeep",
+    clocktower: "Clocktower",
+    well: "Old Well",
     dragon_gate: "Dragon Gate",
     final_battle: "Final Battle",
     [FINISHED_SCENE]: "Finished Game",
@@ -576,8 +584,11 @@
         "Snack Break Cookbook": true,
         "Moon Leap Manual": true,
         "Golden Fly Protein": true,
-        "Dragonfly Tactics": true,
-      };
+      "Dragonfly Tactics": true,
+      "Clockwork Compass": true,
+      "Old Bell Manual": true,
+      "Well Whisper Notes": true,
+    };
     }
 
     newState() {
@@ -1464,6 +1475,14 @@
         await this.moonlitMarketScene(player, shopStock);
       } else if (sceneId === "vampire_castle") {
         await this.vampireCastleScene(player);
+      } else if (sceneId === "false_throne") {
+        await this.falseThroneScene(player, shopStock);
+      } else if (sceneId === "underkeep") {
+        await this.underkeepScene(player);
+      } else if (sceneId === "clocktower") {
+        await this.clocktowerScene(player, shopStock);
+      } else if (sceneId === "well") {
+        await this.wellScene(player);
       } else if (sceneId === "dragon_gate") {
         await this.dragonGateScene(player, shopStock);
       } else if (sceneId === "final_battle") {
@@ -1478,6 +1497,58 @@
       this.say(`\nGood job, ${player.name || "Adventurer"}, you have completed the game.`);
       this.say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.");
       this.sayParts(["\nTHE END\nYou finished with ", ...this.moneyParts(player.money), "."]);
+      return this.postgameMenu(player);
+    }
+
+    async postgameMenu(player) {
+      while (true) {
+        const choice = await this.chooseMenu("Postgame", [
+          { key: "1", label: "Build a House", value: "house", aliases: ["house", "build"] },
+          { key: "2", label: "Start a Family", value: "family", aliases: ["family", "home"] },
+          { key: "3", label: "Garden", value: "garden", aliases: ["garden", "farm"] },
+          { key: "4", label: "Open a Shop", value: "shop", aliases: ["shop", "store"] },
+          { key: "5", label: "Help the Town", value: "town", aliases: ["town", "help"] },
+          { key: "6", label: "Take a Quest", value: "quest", aliases: ["quest", "job"] },
+          { key: "7", label: "Hold a Festival", value: "festival", aliases: ["festival", "party"] },
+          { key: "8", label: "Keep Adventuring", value: "adventure", aliases: ["adventure", "wander"] },
+          { key: "9", label: "Exit Game", value: "exit", aliases: ["exit", "quit", "q"] },
+        ], {
+          prompt: "Postgame choice: ",
+          subtitle: "The realm is safe enough to live in now.",
+        });
+        if (choice === "house") {
+          this.say("\nYou buy land near the road and build a small house with a sturdy roof.");
+          player.money = Math.max(0, player.money - 25);
+          this.say("You hang a lantern by the door and finally have a place to come back to.");
+        } else if (choice === "family") {
+          this.say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.");
+          this.say("The house gets louder, warmer, and a lot more lived in.");
+        } else if (choice === "garden") {
+          this.say("\nYou plant rows of vegetables behind the house and grow herbs for potions.");
+          this.say("The frog supervises the garden like it owns the property.");
+        } else if (choice === "shop") {
+          this.say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.");
+          player.money += 10;
+          this.say("Travelers start leaving notes and odd little trinkets on the counter.");
+        } else if (choice === "town") {
+          this.say("\nYou help repair roads, roofs, and the old bridge over the river.");
+          this.say("The village starts looking like a place people can grow old in.");
+        } else if (choice === "quest") {
+          const outcomes = [
+            "A farmer hires you to find three missing sheep. You return with four, because one tagged along.",
+            "The blacksmith asks for rare ore. You spend the afternoon in the hills and come back with a strange blue stone.",
+            "A child asks for a hero story. You make one up, then realize it is almost true.",
+          ];
+          this.say(`\n${outcomes[Math.floor(Math.random() * outcomes.length)]}`);
+        } else if (choice === "festival") {
+          this.say("\nYou help organize a town festival with lanterns, music, and too many pies.");
+          this.say("By nightfall the whole valley feels warmer.");
+        } else if (choice === "adventure") {
+          this.say("\nYou take one more walk into the hills and come back with stories nobody believes.");
+        } else if (choice === "exit") {
+          return;
+        }
+      }
     }
 
     async introScene(player) {
@@ -1614,6 +1685,13 @@
       }
       await this.spellFight("skeleton", player);
       await this.offerPotions(player);
+      const whisper = (await this.ask("\nBefore you leave, the cobblestones seem to whisper. Type what you heard or press Enter: ")).trim().toLowerCase();
+      if (whisper === "listen") {
+        this.say("\nA loose brick slides aside and reveals a narrow ladder.");
+        await this.clocktowerScene(player, shopStock);
+      } else if (whisper === "well") {
+        await this.wellScene(player);
+      }
     }
 
     async forestScene(player, shopStock) {
@@ -1636,6 +1714,10 @@
 
       this.say("\nAt the forest edge, Miss Costalot waves you over to her traveling cart.");
       await this.runShop(player, shopStock, true);
+      if ((await this.ask("\nA mossy sign points off the road. Type 'detour' to ignore it, or press Enter: ")).trim().toLowerCase() === "detour") {
+        this.say("\nYou push through nettles and find a forgotten well.");
+        await this.wellScene(player);
+      }
     }
 
     async twinDoorsScene(player) {
@@ -1719,6 +1801,10 @@
       this.say("\nThe shadow knight drops $30 and a note that says: please stop Lord Dreadbiscuit.");
       this.printStats(player);
       await this.offerPotions(player);
+      if ((await this.ask("\nA vendor drops a receipt. Type the first word printed in tiny ink, or press Enter: ")).trim().toLowerCase() === "clock") {
+        this.say("\nThe receipt opens a seam in the market wall.");
+        await this.clocktowerScene(player, shopStock);
+      }
     }
 
     async vampireCastleScene(player) {
@@ -1733,8 +1819,78 @@
       player.backpack.push("Silver Key of Mild Concern");
       player.money += 40;
       this.say("\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus $40.");
+      this.say("The key is real, but the real castle keeps moving farther away.");
       this.printStats(player);
       await this.offerPotions(player);
+    }
+
+    async falseThroneScene(player, shopStock) {
+      this.say("\nThe Silver Key opens a hall with a throne made of polished cookies.");
+      this.say("A herald in a paper crown announces that the final castle is 'just ahead' again.");
+      if (await this.fightOrRun("\nA mirrored knight steps out of the throne room. Fight or run? ") === "run") {
+        this.say("\nYou run, but the hallway keeps becoming longer behind you.");
+        this.gameOver(player);
+      }
+
+      await this.spellFight("shadow knight", player);
+      const reward = randomInt(20, 35);
+      player.money += reward;
+      this.say(`\nBehind the false throne, you find $${reward} and a stairway that goes down.`);
+      this.printStats(player);
+      await this.offerPotions(player);
+      await this.runShop(player, shopStock, true);
+    }
+
+    async clocktowerScene(player, shopStock) {
+      this.say("\nA narrow stair climbs into a clocktower nobody mentioned.");
+      this.say("Each floor is quieter than the last, as if the tower is trying not to be found.");
+      if (await this.fightOrRun("\nA brass sentinel blocks the gears. Fight or run? ") === "run") {
+        this.say("\nYou run, but the tower ticks its way into your path again.");
+        this.gameOver(player);
+      }
+      await this.spellFight("shadow knight", player);
+      player.money += 20;
+      player.backpack.push("Clockwork Cog");
+      this.say("\nThe sentinel drops a Clockwork Cog and the tower keeps turning anyway.");
+      this.printStats(player);
+      await this.offerPotions(player);
+      await this.runShop(player, shopStock, true);
+    }
+
+    async wellScene(player) {
+      this.say("\nYou find an old well behind a fence that should not be easy to notice.");
+      this.say("Something from below taps back twice, waits, then once more.");
+      const choice = await this.yesNo("\nLean over and listen again? (yes/no): ");
+      if (choice === "no") {
+        this.say("\nThe well stays quiet, which is somehow worse.");
+        return;
+      }
+      player.backpack.push("Well Water");
+      player.money += 7;
+      this.say("\nA bucket rises with seven coins and a bottle of cold well water.");
+      this.printStats(player);
+    }
+
+    async underkeepScene(player) {
+      this.say("\nThe stairway leads under the castle into a damp underkeep.");
+      this.say("A sleepy archivist says the princess is not here, then stamps your map with 'TRY AGAIN'.");
+      if (await this.fightOrRun("\nA chained ogre blocks the only tunnel. Fight or run? ") === "run") {
+        this.say("\nYou run into a wall of old bricks and lose the argument.");
+        this.gameOver(player);
+      }
+
+      await this.spellFight("ogre", player);
+      player.backpack.push("Ancient Map Fragment");
+      player.money += 25;
+      this.say("\nThe ogre drops an Ancient Map Fragment and a small pouch of coins.");
+      this.say("The fragment points deeper underground, because of course it does.");
+      this.printStats(player);
+      await this.offerPotions(player);
+      const deeper = (await this.ask("\nThe tunnel breathes once. Type 'deeper' to keep going, or press Enter: ")).trim().toLowerCase();
+      if (deeper === "deeper") {
+        this.say("\nYou slip into a maintenance passage that should not exist.");
+        await this.wellScene(player);
+      }
     }
 
     async dragonGateScene(player, shopStock) {
@@ -1753,6 +1909,7 @@
       player.backpack.push("Dragon Scale Chip");
       player.money += 60;
       this.say("\nThe dragon bows, gives you a Dragon Scale Chip, and pushes $60 into your hands.");
+      this.say("You are sure this must be the last thing. It is not the last thing.");
       this.printStats(player);
       await this.offerPotions(player);
     }
