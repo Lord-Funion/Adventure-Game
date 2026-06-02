@@ -299,10 +299,42 @@
       this.root.scrollTop = this.root.scrollHeight;
     }
 
+    colorClassForText(text) {
+      const lowered = text.toLowerCase();
+      if (text.startsWith("$")) return "yellow";
+      if (lowered.includes("game over") || lowered.includes("damage") || lowered.includes("attacks")) return "red";
+      if (/^\d+\/\d+$/.test(text) || lowered.includes("health")) return "red";
+      if (lowered.includes("the end") || text.startsWith("===")) return "yellow";
+      if (lowered.includes("good job") || lowered.includes("you learned") || lowered.includes("you bought") || lowered.includes("cloud synced")) return "green";
+      if (lowered.startsWith("credits:")) return "dim";
+      if (text.startsWith('"') && text.endsWith('"')) return "cyan";
+      return "";
+    }
+
+    colorizeText(value) {
+      const text = String(value);
+      const pattern = /(\$-?\d+|\b\d+\/\d+\b|\b\d+\s+(?:damage|health)\b|GAME OVER|THE END|=== [^=\n]+ ===|Credits:[^\n]*|Good job,[^\n]*|You learned[^\n]*|You bought[^\n]*|Cloud synced|".*?")/g;
+      const parts = [];
+      let lastIndex = 0;
+      for (const match of text.matchAll(pattern)) {
+        if (match.index > lastIndex) {
+          parts.push(text.slice(lastIndex, match.index));
+        }
+        const token = match[0];
+        const className = this.colorClassForText(token);
+        parts.push(className ? { text: token, className } : token);
+        lastIndex = match.index + token.length;
+      }
+      if (lastIndex < text.length) {
+        parts.push(text.slice(lastIndex));
+      }
+      return parts.length ? parts : text;
+    }
+
     appendLine(parts = "") {
       const line = document.createElement("div");
       line.className = "terminal-line";
-      this.appendParts(line, parts);
+      this.appendParts(line, Array.isArray(parts) ? parts : this.colorizeText(parts));
       this.output.append(line);
       this.scrollToBottom();
       return line;
@@ -405,6 +437,7 @@
         wrapper.className = "terminal-input-line";
 
         const promptSpan = document.createElement("span");
+        promptSpan.className = "terminal-prompt";
         promptSpan.textContent = prompt;
         wrapper.append(promptSpan);
         this.appendPromptClickChoices(wrapper, options.clickChoices);
@@ -513,7 +546,7 @@
     }
 
     divider(title) {
-      this.say(`\n=== ${title} ===`);
+      this.sayParts(["\n", { text: `=== ${title} ===`, className: "yellow" }]);
     }
 
     moneyParts(amount) {
@@ -670,17 +703,21 @@
         }
 
         for (const option of options) {
-          const parts = [`${option.key}. ${option.label}`];
+          const parts = [
+            { text: option.key, className: option.enabled === false ? "dim" : "cyan" },
+            ". ",
+            { text: option.label, className: option.enabled === false ? "dim" : "green" },
+          ];
           if (option.detail) {
-            parts.push(" - ");
+            parts.push({ text: " - ", className: "dim" });
             if (Array.isArray(option.detail)) {
               parts.push(...option.detail);
             } else {
-              parts.push(option.detail);
+              parts.push({ text: option.detail, className: "white" });
             }
           }
           if (option.status) {
-            parts.push(` (${option.status})`);
+            parts.push(" (", { text: option.status, className: "yellow" }, ")");
           }
           this.sayClickableParts(parts, option.key, option.enabled === false);
         }

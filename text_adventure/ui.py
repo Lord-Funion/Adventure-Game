@@ -26,7 +26,7 @@ def normalize_choice(value):
 
 def divider(title):
     """Print a compact section title."""
-    print(f"\n=== {title} ===")
+    print(f"\n{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}=== {title} ==={Style.RESET_ALL}")
 
 
 def stat_meter(current, maximum, width=16):
@@ -59,7 +59,22 @@ def choose_menu(title, options, prompt="Choose: ", subtitle=None, invalid=None):
                 line += f" ({option.status})"
             if not option.enabled:
                 line = f"{Style.DIM}{line}{Style.RESET_ALL}"
-            print(line)
+                print(line)
+                continue
+
+            print(
+                f"{Fore.LIGHTCYAN_EX}{option.key}{Style.RESET_ALL}. "
+                f"{Style.BRIGHT}{Fore.LIGHTGREEN_EX}{option.label}{Style.RESET_ALL}",
+                end="",
+            )
+            if option.detail:
+                detail = option.detail
+                if "\033[" not in detail:
+                    detail = f"{Fore.LIGHTWHITE_EX}{detail}{Style.RESET_ALL}"
+                print(f" - {detail}", end="")
+            if option.status:
+                print(f" ({Fore.LIGHTYELLOW_EX}{option.status}{Style.RESET_ALL})", end="")
+            print()
 
         choice = normalize_choice(ask(prompt))
         for option in options:

@@ -238,8 +238,51 @@ std::string ask(const std::string& prompt) {
     return trim(value);
 }
 
+bool starts_with(const std::string& value, const std::string& prefix) {
+    return value.rfind(prefix, 0) == 0;
+}
+
+std::string colorize_plain_message(const std::string& message) {
+    if (message.find("\033[") != std::string::npos) {
+        return message;
+    }
+
+    std::size_t first = 0;
+    while (first < message.size() && std::isspace(static_cast<unsigned char>(message[first]))) {
+        ++first;
+    }
+    std::string leading = message.substr(0, first);
+    std::string body = message.substr(first);
+    if (body.empty()) {
+        return message;
+    }
+
+    std::string lowered = normalize_choice(body);
+    if (starts_with(body, "===") || lowered.find("the end") != std::string::npos) {
+        return leading + term::bright_yellow(body);
+    }
+    if (lowered.find("game over") != std::string::npos ||
+        lowered.find("damage") != std::string::npos ||
+        lowered.find("attacks") != std::string::npos) {
+        return leading + term::red(body);
+    }
+    if (lowered.find("good job") != std::string::npos ||
+        lowered.find("you learned") != std::string::npos ||
+        lowered.find("you bought") != std::string::npos ||
+        lowered.find("cloud synced") != std::string::npos) {
+        return leading + term::bright_green(body);
+    }
+    if (lowered.find("credits:") == 0) {
+        return leading + term::dim(body);
+    }
+    if (body.find('"') != std::string::npos) {
+        return leading + term::bright_cyan(body);
+    }
+    return message;
+}
+
 void say(const std::string& message) {
-    std::cout << message << "\n";
+    std::cout << colorize_plain_message(message) << "\n";
 }
 
 void exit_game() {
