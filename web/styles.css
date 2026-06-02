@@ -117,10 +117,16 @@ body {
 
 .terminal-logo {
   margin: 0 0 14px;
+  display: block;
+  max-width: 100%;
   overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 0.25em;
   color: var(--terminal-yellow);
+  font-family: "Courier New", Courier, monospace;
   font-size: clamp(10px, 2vw, 16px);
-  line-height: 1.08;
+  font-variant-ligatures: none;
+  line-height: 1.22;
   white-space: pre;
 }
 
