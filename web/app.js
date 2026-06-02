@@ -1500,51 +1500,148 @@
       return this.postgameMenu(player);
     }
 
+    postgameHas(player, item) {
+      return player.backpack.includes(item);
+    }
+
+    postgameAddOnce(player, item) {
+      if (!this.postgameHas(player, item)) {
+        player.backpack.push(item);
+        return true;
+      }
+      return false;
+    }
+
+    postgameSpend(player, amount) {
+      if (player.money < amount) {
+        this.sayParts(["\nYou need ", ...this.moneyParts(amount - player.money), " more."]);
+        return false;
+      }
+      player.money -= amount;
+      return true;
+    }
+
+    postgameStatus(player) {
+      const milestones = [
+        "Postgame House",
+        "Second Floor",
+        "Family Hearth",
+        "Garden Patch",
+        "Hero Shop Ledger",
+        "Town Charter",
+        "Fishing Rod",
+        "River Boat",
+        "Apprentice Badge",
+        "Festival Banner",
+        "Hero Statue",
+      ];
+      const unlocked = milestones.filter((item) => this.postgameHas(player, item));
+      this.sayParts(["\nMoney: ", ...this.moneyParts(player.money)]);
+      this.say(`Settlement: ${unlocked.length ? unlocked.join(", ") : "nothing built yet"}`);
+    }
+
     async postgameMenu(player) {
       while (true) {
         const choice = await this.chooseMenu("Postgame", [
-          { key: "1", label: "Build a House", value: "house", aliases: ["house", "build"] },
-          { key: "2", label: "Start a Family", value: "family", aliases: ["family", "home"] },
-          { key: "3", label: "Garden", value: "garden", aliases: ["garden", "farm"] },
-          { key: "4", label: "Open a Shop", value: "shop", aliases: ["shop", "store"] },
-          { key: "5", label: "Help the Town", value: "town", aliases: ["town", "help"] },
-          { key: "6", label: "Take a Quest", value: "quest", aliases: ["quest", "job"] },
+          { key: "1", label: "Build or Upgrade Home", value: "house", aliases: ["house", "build", "upgrade"] },
+          { key: "2", label: "Family and Home", value: "family", aliases: ["family", "home"] },
+          { key: "3", label: "Garden and Craft", value: "garden", aliases: ["garden", "farm", "craft"] },
+          { key: "4", label: "Run Your Shop", value: "shop", aliases: ["shop", "store"] },
+          { key: "5", label: "Rebuild the Realm", value: "town", aliases: ["town", "help", "realm"] },
+          { key: "6", label: "Jobs Board", value: "quest", aliases: ["quest", "job", "jobs"] },
           { key: "7", label: "Hold a Festival", value: "festival", aliases: ["festival", "party"] },
-          { key: "8", label: "Keep Adventuring", value: "adventure", aliases: ["adventure", "wander"] },
-          { key: "9", label: "Exit Game", value: "exit", aliases: ["exit", "quit", "q"] },
+          { key: "8", label: "Fish and Sail", value: "river", aliases: ["fish", "river", "sail"] },
+          { key: "9", label: "Train an Apprentice", value: "apprentice", aliases: ["train", "apprentice"] },
+          { key: "10", label: "Settlement Status", value: "status", aliases: ["status", "settlement"] },
+          { key: "11", label: "Exit Game", value: "exit", aliases: ["exit", "quit", "q"] },
         ], {
           prompt: "Postgame choice: ",
           subtitle: "The realm is safe enough to live in now.",
         });
         if (choice === "house") {
-          this.say("\nYou buy land near the road and build a small house with a sturdy roof.");
-          player.money = Math.max(0, player.money - 25);
-          this.say("You hang a lantern by the door and finally have a place to come back to.");
+          if (!this.postgameHas(player, "Postgame House")) {
+            if (this.postgameSpend(player, 25)) {
+              this.postgameAddOnce(player, "Postgame House");
+              this.say("\nYou buy land near the road and build a small house with a sturdy roof.");
+              this.say("You hang a lantern by the door and finally have a place to come back to.");
+            }
+          } else if (!this.postgameHas(player, "Second Floor")) {
+            if (this.postgameSpend(player, 60)) {
+              this.postgameAddOnce(player, "Second Floor");
+              this.say("\nYou add a second floor, a guest room, and a balcony facing the hills.");
+            }
+          } else {
+            this.say("\nYou patch the roof, oil the hinges, and make the house a little nicer.");
+          }
         } else if (choice === "family") {
-          this.say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.");
-          this.say("The house gets louder, warmer, and a lot more lived in.");
+          if (!this.postgameHas(player, "Postgame House")) {
+            this.say("\nYou should build a home first.");
+          } else if (this.postgameAddOnce(player, "Family Hearth")) {
+            this.say("\nYou meet someone kind, and over time you start a family in the quiet part of the valley.");
+            this.say("The house gets louder, warmer, and a lot more lived in.");
+          } else {
+            this.say("\nYou spend the day at home cooking, telling stories, and fixing a mysteriously broken chair.");
+          }
         } else if (choice === "garden") {
-          this.say("\nYou plant rows of vegetables behind the house and grow herbs for potions.");
+          this.postgameAddOnce(player, "Garden Patch");
+          player.backpack.push("Potion Herbs");
+          this.say("\nYou tend the garden and harvest Potion Herbs.");
           this.say("The frog supervises the garden like it owns the property.");
         } else if (choice === "shop") {
-          this.say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.");
-          player.money += 10;
-          this.say("Travelers start leaving notes and odd little trinkets on the counter.");
+          if (this.postgameAddOnce(player, "Hero Shop Ledger")) {
+            this.say("\nYou open a tiny shop and sell repair kits, jam, and honest advice.");
+          }
+          const earnings = randomInt(8, 22);
+          player.money += earnings;
+          this.sayParts(["Travelers buy supplies and leave ", ...this.moneyParts(earnings), " on the counter."]);
         } else if (choice === "town") {
-          this.say("\nYou help repair roads, roofs, and the old bridge over the river.");
-          this.say("The village starts looking like a place people can grow old in.");
+          if (this.postgameAddOnce(player, "Town Charter")) {
+            this.say("\nYou help repair roads, roofs, and the old bridge over the river.");
+            this.say("The village starts looking like a place people can grow old in.");
+          } else if (this.postgameAddOnce(player, "Hero Statue")) {
+            this.say("\nThe town builds a small statue of you. It looks almost, but not quite, like you.");
+          } else {
+            this.say("\nYou spend the afternoon settling disputes, moving lumber, and signing very official papers.");
+          }
         } else if (choice === "quest") {
+          const reward = randomInt(10, 30);
+          player.money += reward;
           const outcomes = [
             "A farmer hires you to find three missing sheep. You return with four, because one tagged along.",
             "The blacksmith asks for rare ore. You spend the afternoon in the hills and come back with a strange blue stone.",
             "A child asks for a hero story. You make one up, then realize it is almost true.",
+            "A courier needs help crossing the old road. You escort them past three suspicious puddles.",
           ];
           this.say(`\n${outcomes[Math.floor(Math.random() * outcomes.length)]}`);
+          this.sayParts(["You earn ", ...this.moneyParts(reward), "."]);
         } else if (choice === "festival") {
+          this.postgameAddOnce(player, "Festival Banner");
           this.say("\nYou help organize a town festival with lanterns, music, and too many pies.");
           this.say("By nightfall the whole valley feels warmer.");
+        } else if (choice === "river") {
+          if (this.postgameAddOnce(player, "Fishing Rod")) {
+            this.say("\nYou carve a fishing rod and learn that hero work did not teach patience.");
+          } else if (this.postgameAddOnce(player, "River Boat")) {
+            this.say("\nYou build a small river boat and map the bends beyond town.");
+          } else {
+            const catches = ["Silver Minnow", "Boot With Teeth Marks", "Tiny Treasure Chest"];
+            const caught = catches[Math.floor(Math.random() * catches.length)];
+            player.backpack.push(caught);
+            this.say(`\nYou fish until sunset and catch a ${caught}.`);
+          }
+        } else if (choice === "apprentice") {
+          if (this.postgameAddOnce(player, "Apprentice Badge")) {
+            this.say("\nA young adventurer asks to train with you. You give them an Apprentice Badge.");
+          } else {
+            this.say("\nYou teach your apprentice how to pack snacks, read maps, and run only when running helps.");
+          }
         } else if (choice === "adventure") {
-          this.say("\nYou take one more walk into the hills and come back with stories nobody believes.");
+          const finds = ["Starlit Pebble", "Old Road Coin", "Map to Nowhere"];
+          const find = finds[Math.floor(Math.random() * finds.length)];
+          player.backpack.push(find);
+          this.say(`\nYou take one more walk into the hills and return with a ${find}.`);
+        } else if (choice === "status") {
+          this.postgameStatus(player);
         } else if (choice === "exit") {
           return;
         }
