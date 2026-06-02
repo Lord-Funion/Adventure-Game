@@ -2289,8 +2289,6 @@ void run_story(State state) {
         if (autosave_state(state)) {
             say("\nCheckpoint autosaved locally.");
         }
-
-        checkpoint_menu(state);
     }
 }
 

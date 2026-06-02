@@ -851,10 +851,6 @@ def _run_story(state):
                 message += " Cloud synced."
             say(message, "quick")
 
-        state = _checkpoint_menu(state)
-        if state is None:
-            return
-
 
 def _restart_menu():
     return choose_menu(
