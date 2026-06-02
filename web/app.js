@@ -1480,11 +1480,6 @@
           }
           this.say(message);
         }
-
-        state = await this.checkpointMenu(state);
-        if (state === null) {
-          return;
-        }
       }
     }
 
