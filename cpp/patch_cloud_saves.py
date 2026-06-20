@@ -422,7 +422,7 @@ def main() -> int:
     output_path = Path(sys.argv[2])
     text = source_path.read_text(encoding="utf-8")
 
-    text = require_replace(text, "#include <algorithm>\n", "#include <algorithm>\n#include <array>\n#include <chrono>\n")
+    text = require_replace(text, "#include <algorithm>\n", "#include <algorithm>\n#include <array>\n")
     text = require_replace(text, "#include <sstream>\n", "#include <sstream>\n#include <regex>\n")
     text = require_replace(
         text,

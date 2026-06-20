@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -10,6 +11,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -159,8 +161,12 @@ struct State {
 
 const State* active_autosave_state = nullptr;
 bool autosave_running = false;
+Player* active_quick_menu_player = nullptr;
+bool quick_menu_running = false;
 
 void autosave_tick();
+bool handle_quick_menu_request(const std::string& value);
+void pause_for_output();
 
 struct AutosaveScope {
     const State* previous = nullptr;
@@ -171,6 +177,18 @@ struct AutosaveScope {
 
     ~AutosaveScope() {
         active_autosave_state = previous;
+    }
+};
+
+struct QuickMenuScope {
+    Player* previous = nullptr;
+
+    explicit QuickMenuScope(Player& player) : previous(active_quick_menu_player) {
+        active_quick_menu_player = &player;
+    }
+
+    ~QuickMenuScope() {
+        active_quick_menu_player = previous;
     }
 };
 
@@ -247,16 +265,46 @@ std::string normalize_choice(const std::string& value) {
 }
 
 std::string ask(const std::string& prompt) {
-    std::cout << term::bright_cyan(prompt);
-    std::string value;
-    if (!std::getline(std::cin, value)) {
-        throw std::runtime_error("Input stream closed.");
+    while (true) {
+        std::cout << term::bright_cyan(prompt);
+        std::string value;
+        if (!std::getline(std::cin, value)) {
+            throw std::runtime_error("Input stream closed.");
+        }
+        value = trim(value);
+        if (handle_quick_menu_request(value)) {
+            continue;
+        }
+        return value;
     }
-    return trim(value);
 }
 
 bool starts_with(const std::string& value, const std::string& prefix) {
     return value.rfind(prefix, 0) == 0;
+}
+
+double text_speed_multiplier() {
+    const char* raw_speed = std::getenv("TEXT_ADVENTURE_SPEED");
+    std::string speed = raw_speed ? normalize_choice(raw_speed) : "normal";
+    if (speed == "instant") {
+        return 0.0;
+    }
+    if (speed == "fast") {
+        return 0.55;
+    }
+    if (speed == "slow") {
+        return 1.35;
+    }
+    return 1.0;
+}
+
+void pause_for_output() {
+    double multiplier = text_speed_multiplier();
+    if (multiplier <= 0.0) {
+        return;
+    }
+    auto delay = std::chrono::milliseconds(static_cast<int>(650 * multiplier));
+    std::this_thread::sleep_for(delay);
 }
 
 std::string colorize_plain_message(const std::string& message) {
@@ -300,6 +348,7 @@ std::string colorize_plain_message(const std::string& message) {
 
 void say(const std::string& message) {
     std::cout << colorize_plain_message(message) << "\n";
+    pause_for_output();
     autosave_tick();
 }
 
@@ -724,6 +773,31 @@ std::string choose_menu(
     }
 }
 
+bool handle_quick_menu_request(const std::string& value) {
+    if (normalize_choice(value) != "~") {
+        return false;
+    }
+    if (active_quick_menu_player == nullptr) {
+        say("\nNo stats are available right now.");
+        return true;
+    }
+    if (quick_menu_running) {
+        say("\nYou are already in the ~ menu.");
+        return true;
+    }
+
+    quick_menu_running = true;
+    std::string choice = choose_menu("~ Menu", {
+        {"1", "Player Stats", "stats", "", {"stats", "status"}},
+        {"2", "Back", "back", "", {"back", "return", "cancel"}},
+    }, "~ menu choice: ", "Opened with ~.");
+    if (choice == "stats") {
+        print_stats(*active_quick_menu_player);
+    }
+    quick_menu_running = false;
+    return true;
+}
+
 std::string ask_choice(
     const std::string& prompt,
     const std::unordered_map<std::string, std::vector<std::string>>& choices,
@@ -942,7 +1016,6 @@ void win_fight(const std::string& monster_name, Player& player) {
         player.frog_energy = std::min(player.frog_energy_max, player.frog_energy + 4);
     }
     say("You gained " + money_text(reward) + " and found a " + term::bright_green(drop) + ".");
-    print_stats(player);
 }
 
 void frog_fight(const std::string& monster_name, Player& player) {
@@ -1185,7 +1258,6 @@ bool offer_potions(Player& player) {
         }
     }
 
-    print_stats(player);
     return true;
 }
 
@@ -1470,7 +1542,6 @@ void run_frog_shop(Player& player, std::unordered_map<std::string, bool>& stock,
             buy_equipment(player, stock, "Dragon Scale Shield", 220, "armor", 8);
         } else if (choice == "leave") {
             say("\nYou leave the store.");
-            print_stats(player);
             return;
         }
     }
@@ -1553,7 +1624,6 @@ void run_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool
             buy_equipment(player, stock, "Star Cloak", 230, "extraDamage", 5);
         } else if (choice == "leave") {
             say("\nYou leave the store.");
-            print_stats(player);
             return;
         }
     }
@@ -1746,7 +1816,6 @@ void intro_scene(Player& player) {
         say("The frog hops into your backpack anyway.");
     }
     player.backpack.push_back("Magical Chocolate Frog");
-    print_stats(player);
 }
 
 void wizard_scene(Player& player) {
@@ -1764,7 +1833,6 @@ void wizard_scene(Player& player) {
         say("\nRumblerod shrugs and continues down the path.");
         activate_frog_partner(player);
         say("The frog hops onto your shoulder and learns Tongue Slap out of spite.");
-        print_stats(player);
         return;
     }
 
@@ -1796,7 +1864,6 @@ void locked_door_scene(Player& player) {
     } else {
         say("\nYou say Lockio Reducto. The door opens and you find " + money_text(amount) + ".");
     }
-    print_stats(player);
     extra_fight(
         player,
         "gate rat",
@@ -1832,7 +1899,6 @@ void first_goblin_scene(Player& player) {
         say("It drops a page from a spell book.");
         say("You learned Fireball.");
     }
-    print_stats(player);
 }
 
 void village_scene(Player& player, std::unordered_map<std::string, bool>& shop_stock) {
@@ -1853,15 +1919,14 @@ void village_scene(Player& player, std::unordered_map<std::string, bool>& shop_s
     say("\nA villager says, \"Thank you for saving our village.\"");
     say("\"Take this Big Health Potion. It will restore your health.\"");
     player.backpack.push_back("Big Health Potion");
-    print_stats(player);
     offer_potions(player);
 
-    if (yes_no("\nYou see Harold Sellsalot's General Store. Go inside? (yes/no): ") == "no") {
+    if (yes_no("\nYou see Gnome Depot, Harold Sellsalot's shop. Go inside? (yes/no): ") == "no") {
         say("\nA skeleton archer outside the village shoots you.");
         game_over(player);
     }
 
-    say("\nHarold welcomes you into the store.");
+    say("\nHarold welcomes you into Gnome Depot.");
     run_shop(player, shop_stock);
 
     say("\nYou leave the store and encounter a skeleton.");
@@ -1958,7 +2023,6 @@ void twin_doors_scene(Player& player) {
     int amount = random_int(15, 25);
     player.money += amount;
     say("\nYou find " + money_text(amount) + " in the chest.");
-    print_stats(player);
     offer_potions(player);
 }
 
@@ -1997,7 +2061,6 @@ void mountain_pass_scene(Player& player) {
     player.money += reward;
     player.backpack.push_back("Moon Cheese");
     say("\nThe ice goblin's lunchbox pops open. You find " + money_text(reward) + " and some Moon Cheese.");
-    print_stats(player);
     offer_potions(player);
 }
 
@@ -2020,7 +2083,6 @@ void moonlit_market_scene(Player& player, std::unordered_map<std::string, bool>&
     );
     player.money += 30;
     say("\nThe shadow knight drops " + money_text(30) + " and a note that says: please stop Lord Dreadbiscuit.");
-    print_stats(player);
     offer_potions(player);
     if (normalize_choice(ask("\nA vendor drops a receipt. Type the first word printed in tiny ink, or press Enter: ")) == "clock") {
         say("\nThe receipt opens a seam in the market wall.");
@@ -2047,7 +2109,6 @@ void vampire_castle_scene(Player& player) {
     player.money += 40;
     say("\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus " + money_text(40) + ".");
     say("The key is real, but the real castle keeps moving farther away.");
-    print_stats(player);
     offer_potions(player);
 }
 
@@ -2069,7 +2130,6 @@ void false_throne_scene(Player& player, std::unordered_map<std::string, bool>& s
     int reward = random_int(20, 35);
     player.money += reward;
     say("\nBehind the false throne, you find " + money_text(reward) + " and a stairway that goes down.");
-    print_stats(player);
     offer_potions(player);
     run_shop(player, shop_stock, true);
 }
@@ -2091,7 +2151,6 @@ void clocktower_scene(Player& player, std::unordered_map<std::string, bool>& sho
     player.money += 20;
     player.backpack.push_back("Clockwork Cog");
     say("\nThe sentinel drops a Clockwork Cog and the tower keeps turning anyway.");
-    print_stats(player);
     offer_potions(player);
     run_shop(player, shop_stock, true);
 }
@@ -2106,7 +2165,6 @@ void well_scene(Player& player) {
     player.backpack.push_back("Well Water");
     player.money += 7;
     say("\nA bucket rises with " + money_text(7) + " and a bottle of cold well water.");
-    print_stats(player);
 }
 
 void underkeep_scene(Player& player) {
@@ -2128,7 +2186,6 @@ void underkeep_scene(Player& player) {
     player.money += 25;
     say("\nThe ogre drops an Ancient Map Fragment and a small pouch of Whoop Nickels.");
     say("The fragment points deeper underground, because of course it does.");
-    print_stats(player);
     offer_potions(player);
     if (normalize_choice(ask("\nThe tunnel breathes once. Type 'deeper' to keep going, or press Enter: ")) == "deeper") {
         say("\nYou slip into a maintenance passage that should not exist.");
@@ -2165,7 +2222,6 @@ void dragon_gate_scene(Player& player, std::unordered_map<std::string, bool>& sh
     player.money += 60;
     say("\nThe dragon bows, gives you a Dragon Scale Chip, and pushes " + money_text(60) + " into your hands.");
     say("You are sure this must be the last thing. It is not the last thing.");
-    print_stats(player);
     offer_potions(player);
 }
 
@@ -2180,7 +2236,6 @@ void final_battle_scene(Player& player) {
     spell_fight("lord dreadbiscuit", player);
     say("\nLord Dreadbiscuit wobbles, crumbles, and apologizes to everyone he has inconvenienced.");
     say("Rumblerod appears from behind a curtain and insists he was helping invisibly the whole time.");
-    print_stats(player);
 }
 
 bool postgame_add_once(Player& player, const std::string& item) {
@@ -2354,7 +2409,6 @@ void run_scene(const std::string& scene_id, Player& player, std::unordered_map<s
         intro_scene(player);
     } else if (scene_id == "wizard") {
         wizard_scene(player);
-        print_stats(player);
     } else if (scene_id == "locked_door") {
         locked_door_scene(player);
     } else if (scene_id == "first_goblin") {
@@ -2406,8 +2460,7 @@ bool checkpoint_menu(State& state) {
             {"2", "Save Game", "save", "", {"save", "s"}},
             {"3", "Load Game", "load", "", {"load", "l"}},
             {"4", "Cloud Saves", "cloud", "", {"cloud", "online", "sync"}},
-            {"5", "Player Stats", "stats", "", {"stats", "status"}},
-            {"6", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
+            {"5", EXIT_LABEL, "exit", "", {"exit", "quit", "q"}},
         }, "Checkpoint choice: ", subtitle);
 
         if (choice == "continue") {
@@ -2430,8 +2483,6 @@ bool checkpoint_menu(State& state) {
             }
         } else if (choice == "cloud") {
             say("\nCloud saves are not available in the C++ port.");
-        } else if (choice == "stats") {
-            print_stats(state.player);
         } else if (choice == "exit") {
             exit_game();
         }
@@ -2440,6 +2491,7 @@ bool checkpoint_menu(State& state) {
 
 void run_story(State state) {
     AutosaveScope autosave_scope(state);
+    QuickMenuScope quick_menu_scope(state.player);
     while (true) {
         std::string scene_id = state.next_scene;
         if (scene_id == FINISHED_SCENE) {
