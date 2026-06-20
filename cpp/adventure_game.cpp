@@ -25,8 +25,8 @@
 
 namespace fs = std::filesystem;
 
-constexpr int BASIC_DAMAGE = 5;
-constexpr int STATUS_DAMAGE = 3;
+constexpr int BASIC_DAMAGE = 4;
+constexpr int STATUS_DAMAGE = 5;
 constexpr const char* FINISHED_SCENE = "finished";
 constexpr const char* SAVE_PATH = "saves/cpp_autosave.cppsave";
 constexpr const char* EXIT_LABEL = "Exit Game";
@@ -137,15 +137,15 @@ struct Player {
     int money = 0;
     int health = 100;
     int health_max = 100;
-    int mana = 50;
-    int mana_max = 50;
+    int mana = 100;
+    int mana_max = 100;
     int armor = 0;
     int weapon_damage = 0;
     int extra_damage = 0;
     bool frog_mode = false;
     int frog_power = 0;
-    int frog_energy = 25;
-    int frog_energy_max = 25;
+    int frog_energy = 0;
+    int frog_energy_max = 0;
     std::vector<std::string> backpack;
     std::vector<std::string> spells;
     std::vector<std::string> frog_attacks;
@@ -155,6 +155,23 @@ struct State {
     Player player;
     std::unordered_map<std::string, bool> shop_stock;
     std::string next_scene = "intro";
+};
+
+const State* active_autosave_state = nullptr;
+bool autosave_running = false;
+
+void autosave_tick();
+
+struct AutosaveScope {
+    const State* previous = nullptr;
+
+    explicit AutosaveScope(const State& state) : previous(active_autosave_state) {
+        active_autosave_state = &state;
+    }
+
+    ~AutosaveScope() {
+        active_autosave_state = previous;
+    }
 };
 
 struct MenuOption {
@@ -283,6 +300,7 @@ std::string colorize_plain_message(const std::string& message) {
 
 void say(const std::string& message) {
     std::cout << colorize_plain_message(message) << "\n";
+    autosave_tick();
 }
 
 void exit_game() {
@@ -304,7 +322,7 @@ std::string stat_meter(int current, int maximum, int width = 16) {
 }
 
 std::string money_text(int amount) {
-    return term::bright_yellow("$" + std::to_string(amount));
+    return term::bright_yellow(std::to_string(amount) + " " + (amount == 1 ? "Whoop Nickel" : "Whoop Nickels"));
 }
 
 std::string health_text(int current, int maximum) {
@@ -375,13 +393,13 @@ const std::unordered_map<std::string, std::string>& scene_titles() {
 
 const std::unordered_map<std::string, Spell>& spells() {
     static const std::unordered_map<std::string, Spell> data = {
-        {"Fireball", {true, 10, false, 0, 5, 3, 0, "Deals 10 damage and sets the target burning."}},
-        {"Arcane Blast", {true, 0, false, 0, 15, 0, 2, "Stuns an enemy for 2 turns."}},
-        {"Thunderstorm", {true, 20, false, 0, 20, 0, 0, "Deals 20 damage."}},
-        {"Restoration Incantation", {false, 0, true, 10, 7, 0, 0, "Heals 10 health in battle."}},
-        {"Frost Nova", {true, 12, false, 0, 12, 0, 1, "Deals 12 damage and chills an enemy still for 1 turn."}},
-        {"Solar Beam", {true, 30, false, 0, 25, 2, 0, "Deals 30 damage and leaves a bright burn."}},
-        {"Life Bloom", {false, 0, true, 25, 15, 0, 0, "Heals 25 health in battle."}},
+        {"Fireball", {true, 14, false, 0, 12, 2, 0, "Deals 14 damage and sets the target burning."}},
+        {"Arcane Blast", {true, 0, false, 0, 32, 0, 2, "Stuns an enemy for 2 turns."}},
+        {"Thunderstorm", {true, 32, false, 0, 45, 0, 0, "Deals 32 damage."}},
+        {"Restoration Incantation", {false, 0, true, 24, 35, 0, 0, "Heals 24 health in battle."}},
+        {"Frost Nova", {true, 18, false, 0, 38, 0, 1, "Deals 18 damage and freezes the enemy for 1 turn."}},
+        {"Solar Beam", {true, 45, false, 0, 65, 0, 0, "Deals 45 damage."}},
+        {"Life Bloom", {false, 0, true, 45, 55, 0, 0, "Heals 45 health in battle."}},
         {"Lockio Reducto", {false, 0, false, 0, 0, 0, 0, "Unlocks sealed doors."}},
     };
     return data;
@@ -389,29 +407,41 @@ const std::unordered_map<std::string, Spell>& spells() {
 
 const std::unordered_map<std::string, FrogAttack>& frog_attacks() {
     static const std::unordered_map<std::string, FrogAttack> data = {
-        {"Tongue Slap", {true, 8, false, 0, 0, 0, 0, "A free snapping smack from a very serious frog."}},
-        {"Bubble Burp", {true, 14, false, 0, 6, 2, 0, "Deals 14 damage and leaves the target covered in fizzy bubbles."}},
-        {"Royal Croak", {true, 0, false, 0, 8, 0, 2, "A royal croak that stuns an enemy for 2 turns."}},
-        {"Snack Break", {false, 0, true, 20, 7, 0, 0, "The frog shares emergency snacks and heals 20 health."}},
-        {"Moon Leap", {true, 22, false, 0, 12, 0, 1, "Deals 22 damage and lands with a stunning moonlit bounce."}},
-        {"Dragonfly Dive", {true, 30, false, 0, 16, 2, 0, "Deals 30 damage with a fiery dive after an imaginary dragonfly."}},
+        {"Tongue Slap", {true, 8, false, 0, 0, 0, 0, "Free frog attack."}},
+        {"Bubble Burp", {true, 16, false, 0, 8, 2, 0, "Deals 16 damage and leaves the enemy bubbling."}},
+        {"Royal Croak", {true, 26, false, 0, 14, 0, 1, "Deals 26 damage and startles the enemy."}},
+        {"Snack Break", {false, 0, true, 24, 12, 0, 0, "The frog produces snacks and heals 24 health."}},
+        {"Moon Leap", {true, 38, false, 0, 22, 0, 0, "A heavy moonlit frog slam."}},
+        {"Dragonfly Dive", {true, 50, false, 0, 30, 0, 1, "A late-game dive that deals 50 damage and stuns."}},
     };
     return data;
 }
 
 const std::unordered_map<std::string, Monster>& monsters() {
     static const std::unordered_map<std::string, Monster> data = {
-        {"goblin", {20, 5, 10, {"punch", "screech", "headbutt"}}},
-        {"troll", {30, 7, 10, {"club", "slam", "bite"}}},
-        {"skeleton", {15, 12, 10, {"bone club", "bone scare", "bone headbutt"}}},
-        {"werewolf", {40, 15, 10, {"claw", "bite", "howl"}}},
-        {"ogre", {50, 25, 10, {"big club", "super smash", "stomp"}}},
-        {"witch", {35, 10, 10, {"poison", "curse", "hex"}}},
-        {"vampire", {45, 17, 20, {"transform into bat", "fangs", "suck blood"}}},
-        {"ice goblin", {35, 14, 15, {"snowball uppercut", "cold toes", "icicle bonk"}}},
-        {"shadow knight", {60, 20, 25, {"gloom blade", "helmet glare", "dramatic cape slap"}}},
-        {"crystal dragon", {80, 24, 35, {"sparkle breath", "tail sweep", "gemstone sneeze"}}},
-        {"lord dreadbiscuit", {95, 26, 50, {"cookie crumble", "royal tantrum", "butter curse"}}},
+        {"goblin", {32, 8, 10, {"punch", "screech", "headbutt"}}},
+        {"troll", {52, 12, 10, {"club", "slam", "bite"}}},
+        {"skeleton", {36, 15, 10, {"bone club", "bone scare", "bone headbutt"}}},
+        {"werewolf", {68, 18, 10, {"claw", "bite", "howl"}}},
+        {"ogre", {86, 24, 10, {"big club", "super smash", "stomp"}}},
+        {"witch", {64, 16, 10, {"poison", "curse", "hex"}}},
+        {"vampire", {82, 21, 10, {"transform into bat", "fangs", "suck blood"}}},
+        {"gate rat", {22, 7, 10, {"rusty nibble", "ankle dash", "tiny ambush"}}},
+        {"smoke imp", {38, 10, 10, {"soot slap", "ember pinch", "smoke cough"}}},
+        {"bramble wolf", {54, 16, 10, {"thorn bite", "vine trip", "bark howl"}}},
+        {"treasure mimic", {58, 18, 10, {"lid snap", "coin spit", "hinge bash"}}},
+        {"curse candle", {45, 17, 10, {"wax splash", "blue flame", "bad birthday wish"}}},
+        {"ice goblin", {72, 20, 10, {"snowball uppercut", "icicle jab", "freezing giggle"}}},
+        {"snow bat", {48, 17, 10, {"frost bite", "wing slap", "sleet shriek"}}},
+        {"shadow knight", {95, 25, 10, {"gloom slash", "helmet bonk", "midnight shove"}}},
+        {"receipt wraith", {62, 19, 10, {"paper cut", "late fee", "ink cloud"}}},
+        {"basement bat", {58, 18, 10, {"cape flutter", "fang tap", "ceiling dive"}}},
+        {"sugar golem", {105, 27, 10, {"frosting fist", "sprinkle storm", "cookie crumble"}}},
+        {"rust rat", {66, 20, 10, {"rust bite", "pipe scramble", "gear squeak"}}},
+        {"glass cobra", {88, 28, 10, {"mirror fang", "shatter hiss", "scale flash"}}},
+        {"crystal dragon", {145, 32, 10, {"rainbow sneeze", "crystal claw", "tail prism"}}},
+        {"crown wraith", {110, 30, 10, {"royal glare", "cold decree", "crown toss"}}},
+        {"lord dreadbiscuit", {180, 36, 10, {"crumb storm", "butter curse", "ego blast"}}},
     };
     return data;
 }
@@ -534,6 +564,7 @@ void add_frog_attack(Player& player, const std::string& attack_name) {
 
 void activate_frog_partner(Player& player) {
     player.frog_mode = true;
+    player.frog_power = std::max(player.frog_power, 4);
     if (!has_item(player, "Magical Chocolate Frog")) {
         player.backpack.push_back("Magical Chocolate Frog");
     }
@@ -552,7 +583,7 @@ int count_item(const Player& player, const std::string& item) {
 
 void print_stats(const Player& player) {
     divider("Player Stats");
-    std::cout << "Money: " << money_text(player.money) << "\n";
+    std::cout << "Whoop Nickels: " << money_text(player.money) << "\n";
     std::cout << "Health: " << health_text(player.health, player.health_max) << "\n";
     std::cout << "Mana: " << mana_text(player.mana, player.mana_max) << "\n";
     std::cout << "Armor: " << term::bright_cyan(std::to_string(player.armor)) << "\n";
@@ -600,6 +631,7 @@ void print_stats(const Player& player) {
     std::cout << "Items: ";
     if (player.backpack.empty()) {
         std::cout << term::bright_green("None") << "\n\n";
+        autosave_tick();
         return;
     }
 
@@ -620,6 +652,7 @@ void print_stats(const Player& player) {
         }
     }
     std::cout << term::bright_green(item_list.str()) << "\n\n";
+    autosave_tick();
 }
 
 std::vector<std::string> option_inputs(const MenuOption& option) {
@@ -671,6 +704,7 @@ std::string choose_menu(
             }
         }
 
+        autosave_tick();
         std::string choice = normalize_choice(ask(prompt));
         bool matched_disabled = false;
         for (const MenuOption& option : options) {
@@ -900,13 +934,12 @@ int monster_attack(const std::string& monster_name, const Monster& monster, Play
 
 void win_fight(const std::string& monster_name, Player& player) {
     say("The " + monster_name + " has been defeated!");
-    int reward = monsters().at(monster_name).reward;
+    int reward = random_int(4, 9);
     player.money += reward;
     std::string drop = random_choice(loot_drops());
     player.backpack.push_back(drop);
-    player.mana = player.mana_max;
     if (player.frog_mode) {
-        player.frog_energy = player.frog_energy_max;
+        player.frog_energy = std::min(player.frog_energy_max, player.frog_energy + 4);
     }
     say("You gained " + money_text(reward) + " and found a " + term::bright_green(drop) + ".");
     print_stats(player);
@@ -1040,6 +1073,11 @@ void spell_fight(const std::string& monster_name, Player& player) {
             int damage = basic_damage(player);
             monster_health -= damage;
             say("You strike for " + std::to_string(damage) + " damage.");
+            if (player.mana < player.mana_max) {
+                int recovered = std::min(3, player.mana_max - player.mana);
+                player.mana += recovered;
+                say("You steady your breathing and recover " + std::to_string(recovered) + " mana.");
+            }
         } else {
             const Spell& spell = spells().at(action);
             player.mana -= spell.mana_cost;
@@ -1167,7 +1205,7 @@ void buy_spell(Player& player, std::unordered_map<std::string, bool>& stock, con
         return;
     }
     if (player.money < price) {
-        say("\nYou don't have enough money.");
+        say("\nYou don't have enough Whoop Nickels.");
         return;
     }
     player.money -= price;
@@ -1179,12 +1217,24 @@ void buy_spell(Player& player, std::unordered_map<std::string, bool>& stock, con
 
 void buy_item(Player& player, const std::string& item_name, int price) {
     if (player.money < price) {
-        say("\nYou don't have enough money.");
+        say("\nYou don't have enough Whoop Nickels.");
         return;
     }
     player.money -= price;
     player.backpack.push_back(item_name);
     say("\nYou bought a " + term::bright_green(item_name) + ".");
+    say("You have " + money_text(player.money) + " left.");
+}
+
+void buy_mana_flask(Player& player) {
+    constexpr int price = 60;
+    if (player.money < price) {
+        say("\nYou don't have enough Whoop Nickels.");
+        return;
+    }
+    player.money -= price;
+    player.mana = std::min(player.mana_max, player.mana + 35);
+    say("\nYou drink a Mana Flask and recover to " + mana_value_text(player.mana, player.mana_max) + " mana.");
     say("You have " + money_text(player.money) + " left.");
 }
 
@@ -1194,7 +1244,7 @@ void buy_stocked_item(Player& player, std::unordered_map<std::string, bool>& sto
         return;
     }
     if (player.money < price) {
-        say("\nYou don't have enough money.");
+        say("\nYou don't have enough Whoop Nickels.");
         return;
     }
     player.money -= price;
@@ -1210,7 +1260,7 @@ void buy_equipment(Player& player, std::unordered_map<std::string, bool>& stock,
         return;
     }
     if (player.money < price) {
-        say("\nYou don't have enough money.");
+        say("\nYou don't have enough Whoop Nickels.");
         return;
     }
     player.money -= price;
@@ -1229,7 +1279,8 @@ void buy_equipment(Player& player, std::unordered_map<std::string, bool>& stock,
 
 void buy_mana(Player& player) {
     while (true) {
-        std::string amount_text = normalize_choice(ask("\nMana to buy (" + money_text(1) + " each, 'all' for max, or 'back'): "));
+        constexpr int price_each = 4;
+        std::string amount_text = normalize_choice(ask("\nMax mana to buy (" + money_text(price_each) + " each, 'all' for max, or 'back'): "));
         int amount = 0;
         if (amount_text == "back" || amount_text == "b" || amount_text == "cancel" || amount_text == "leave" || amount_text == "q") {
             say("\nYou decide not to buy mana.");
@@ -1237,10 +1288,10 @@ void buy_mana(Player& player) {
         }
         if (amount_text == "all" || amount_text == "max") {
             if (player.money <= 0) {
-                say("\nYou don't have enough money.");
+                say("\nYou don't have enough Whoop Nickels.");
                 return;
             }
-            amount = player.money;
+            amount = player.money / price_each;
         } else {
             try {
                 std::size_t parsed = 0;
@@ -1258,14 +1309,15 @@ void buy_mana(Player& player) {
             say("\nPlease enter a positive number.");
             continue;
         }
-        if (player.money < amount) {
-            say("\nYou don't have enough money.");
+        int cost = amount * price_each;
+        if (player.money < cost) {
+            say("\nYou don't have enough Whoop Nickels.");
             return;
         }
-        player.money -= amount;
+        player.money -= cost;
         player.mana += amount;
         player.mana_max += amount;
-        say("\nYou bought " + term::blue(std::to_string(amount)) + " mana.");
+        say("\nYou bought " + term::blue(std::to_string(amount)) + " max mana.");
         say("You have " + money_text(player.money) + " left.");
         return;
     }
@@ -1277,7 +1329,7 @@ void buy_frog_attack(Player& player, std::unordered_map<std::string, bool>& stoc
         return;
     }
     if (player.money < price) {
-        say("\nYou don't have enough money.");
+        say("\nYou don't have enough Whoop Nickels.");
         return;
     }
     player.money -= price;
@@ -1294,7 +1346,7 @@ void buy_frog_training(Player& player, std::unordered_map<std::string, bool>& st
         return;
     }
     if (player.money < price) {
-        say("\nYou don't have enough money.");
+        say("\nYou don't have enough Whoop Nickels.");
         return;
     }
     player.money -= price;
@@ -1315,7 +1367,8 @@ void buy_frog_training(Player& player, std::unordered_map<std::string, bool>& st
 
 void buy_frog_energy(Player& player) {
     while (true) {
-        std::string amount_text = normalize_choice(ask("\nFrog energy to buy (" + money_text(1) + " each, 'all' for max, or 'back'): "));
+        constexpr int price_each = 4;
+        std::string amount_text = normalize_choice(ask("\nFrog energy to buy (" + money_text(price_each) + " each, 'all' for max, or 'back'): "));
         int amount = 0;
         if (amount_text == "back" || amount_text == "b" || amount_text == "cancel" || amount_text == "leave" || amount_text == "q") {
             say("\nYou decide not to buy frog energy.");
@@ -1323,10 +1376,10 @@ void buy_frog_energy(Player& player) {
         }
         if (amount_text == "all" || amount_text == "max") {
             if (player.money <= 0) {
-                say("\nYou don't have enough money.");
+                say("\nYou don't have enough Whoop Nickels.");
                 return;
             }
-            amount = player.money;
+            amount = player.money / price_each;
         } else {
             try {
                 std::size_t parsed = 0;
@@ -1344,11 +1397,12 @@ void buy_frog_energy(Player& player) {
             say("\nPlease enter a positive number.");
             continue;
         }
-        if (player.money < amount) {
-            say("\nYou don't have enough money.");
+        int cost = amount * price_each;
+        if (player.money < cost) {
+            say("\nYou don't have enough Whoop Nickels.");
             return;
         }
-        player.money -= amount;
+        player.money -= cost;
         player.frog_energy += amount;
         player.frog_energy_max += amount;
         say("\nYou bought " + term::bright_green(std::to_string(amount)) + " frog energy.");
@@ -1360,22 +1414,22 @@ void buy_frog_energy(Player& player) {
 void run_frog_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool advanced = false, bool legendary = false) {
     while (true) {
         std::vector<MenuOption> options = {
-            {"1", "Small Health Potion", "small_potion", money_text(15) + " - heals 15 health", {"small", "small potion", "health potion", "potion"}, true, price_status(player, 15)},
-            {"2", "Croak Fu Primer", "croak_fu", money_text(20) + " - +3 frog power", {"croak", "croak fu", "primer", "training"}, stock["Croak Fu Primer"], price_status(player, 20, !stock["Croak Fu Primer"], "read")},
-            {"3", "Bubble Burp Codex", "bubble_burp", money_text(25) + " - " + frog_attacks().at("Bubble Burp").description, {"bubble", "bubble burp", "codex"}, stock["Bubble Burp Codex"], price_status(player, 25, !stock["Bubble Burp Codex"], "read")},
-            {"4", "Add Frog Energy", "frog_energy", money_text(1) + " = +1 max frog energy", {"energy", "frog energy", "add energy"}, true, player.money ? "spend any amount" : "no money"},
+            {"1", "Small Health Potion", "small_potion", money_text(28) + " - heals 15 health", {"small", "small potion", "health potion", "potion"}, true, price_status(player, 28)},
+            {"2", "Croak Fu Primer", "croak_fu", money_text(85) + " - +3 frog power, +10 max frog energy", {"croak", "croak fu", "primer", "training"}, stock["Croak Fu Primer"], price_status(player, 85, !stock["Croak Fu Primer"], "read")},
+            {"3", "Bubble Burp Codex", "bubble_burp", money_text(70) + " - " + frog_attacks().at("Bubble Burp").description, {"bubble", "bubble burp", "codex"}, stock["Bubble Burp Codex"], price_status(player, 70, !stock["Bubble Burp Codex"], "read")},
+            {"4", "Add Frog Energy", "frog_energy", money_text(4) + " = +1 max frog energy", {"energy", "frog energy", "add energy"}, true, player.money ? "spend any amount" : "no money"},
         };
 
         if (advanced) {
-            options.push_back({"5", "Big Health Potion", "big_potion", money_text(40) + " - restores full health", {"big", "big potion", "full potion"}, true, price_status(player, 40)});
-            options.push_back({"6", "Royal Croak Sheet Music", "royal_croak", money_text(35) + " - " + frog_attacks().at("Royal Croak").description, {"royal", "royal croak", "sheet music"}, stock["Royal Croak Sheet Music"], price_status(player, 35, !stock["Royal Croak Sheet Music"], "read")});
-            options.push_back({"7", "Snack Break Cookbook", "snack_break", money_text(30) + " - " + frog_attacks().at("Snack Break").description, {"snack", "snack break", "cookbook"}, stock["Snack Break Cookbook"], price_status(player, 30, !stock["Snack Break Cookbook"], "read")});
-            options.push_back({"8", "Moon Leap Manual", "moon_leap", money_text(45) + " - " + frog_attacks().at("Moon Leap").description, {"moon", "moon leap", "manual"}, stock["Moon Leap Manual"], price_status(player, 45, !stock["Moon Leap Manual"], "read")});
-            options.push_back({"9", "Golden Fly Protein", "golden_fly", money_text(50) + " - +5 frog power, +5 max frog energy", {"golden", "fly", "protein"}, stock["Golden Fly Protein"], price_status(player, 50, !stock["Golden Fly Protein"], "used")});
+            options.push_back({"5", "Big Health Potion", "big_potion", money_text(95) + " - restores full health", {"big", "big potion", "full potion"}, true, price_status(player, 95)});
+            options.push_back({"6", "Royal Croak Sheet Music", "royal_croak", money_text(125) + " - " + frog_attacks().at("Royal Croak").description, {"royal", "royal croak", "sheet music"}, stock["Royal Croak Sheet Music"], price_status(player, 125, !stock["Royal Croak Sheet Music"], "read")});
+            options.push_back({"7", "Snack Break Cookbook", "snack_break", money_text(110) + " - " + frog_attacks().at("Snack Break").description, {"snack", "snack break", "cookbook"}, stock["Snack Break Cookbook"], price_status(player, 110, !stock["Snack Break Cookbook"], "read")});
+            options.push_back({"8", "Moon Leap Manual", "moon_leap", money_text(165) + " - " + frog_attacks().at("Moon Leap").description, {"moon", "moon leap", "manual"}, stock["Moon Leap Manual"], price_status(player, 165, !stock["Moon Leap Manual"], "read")});
+            options.push_back({"9", "Golden Fly Protein", "golden_fly", money_text(180) + " - +5 frog power, +5 max frog energy", {"golden", "fly", "protein"}, stock["Golden Fly Protein"], price_status(player, 180, !stock["Golden Fly Protein"], "used")});
             if (legendary) {
-                options.push_back({"10", "Dragonfly Tactics", "dragonfly_dive", money_text(60) + " - " + frog_attacks().at("Dragonfly Dive").description, {"dragonfly", "dragonfly dive", "tactics"}, stock["Dragonfly Tactics"], price_status(player, 60, !stock["Dragonfly Tactics"], "read")});
-                options.push_back({"11", "Phoenix Feather", "phoenix_feather", money_text(55) + " - revives you once in combat", {"phoenix", "feather", "revive"}, stock["Phoenix Feather"], price_status(player, 55, !stock["Phoenix Feather"], "owned")});
-                options.push_back({"12", "Dragon Scale Shield", "dragon_shield", money_text(70) + " - +8 armor", {"shield", "dragon shield", "dragon scale"}, stock["Dragon Scale Shield"], price_status(player, 70, !stock["Dragon Scale Shield"], "owned")});
+                options.push_back({"10", "Dragonfly Tactics", "dragonfly_dive", money_text(240) + " - " + frog_attacks().at("Dragonfly Dive").description, {"dragonfly", "dragonfly dive", "tactics"}, stock["Dragonfly Tactics"], price_status(player, 240, !stock["Dragonfly Tactics"], "read")});
+                options.push_back({"11", "Phoenix Feather", "phoenix_feather", money_text(180) + " - revives you once in combat", {"phoenix", "feather", "revive"}, stock["Phoenix Feather"], price_status(player, 180, !stock["Phoenix Feather"], "owned")});
+                options.push_back({"12", "Dragon Scale Shield", "dragon_shield", money_text(220) + " - +8 armor", {"shield", "dragon shield", "dragon scale"}, stock["Dragon Scale Shield"], price_status(player, 220, !stock["Dragon Scale Shield"], "owned")});
                 options.push_back({"13", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
             } else {
                 options.push_back({"10", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
@@ -1385,35 +1439,35 @@ void run_frog_shop(Player& player, std::unordered_map<std::string, bool>& stock,
         }
 
         std::ostringstream subtitle;
-        subtitle << "Gold: " << money_text(player.money)
+        subtitle << "Whoop Nickels: " << money_text(player.money)
                  << " | Health: " << health_text(player.health, player.health_max)
                  << " | Frog Energy: " << term::bright_green(stat_meter(player.frog_energy, player.frog_energy_max) + " " + std::to_string(player.frog_energy) + "/" + std::to_string(player.frog_energy_max));
         std::string choice = choose_menu("Frog Training Shop", options, "Shop choice: ", subtitle.str());
 
         if (choice == "small_potion") {
-            buy_item(player, "Small Health Potion", 15);
+            buy_item(player, "Small Health Potion", 28);
         } else if (choice == "croak_fu") {
-            buy_frog_training(player, stock, "Croak Fu Primer", 20, 3, 0);
+            buy_frog_training(player, stock, "Croak Fu Primer", 85, 3, 10);
         } else if (choice == "bubble_burp") {
-            buy_frog_attack(player, stock, "Bubble Burp Codex", 25, "Bubble Burp");
+            buy_frog_attack(player, stock, "Bubble Burp Codex", 70, "Bubble Burp");
         } else if (choice == "frog_energy") {
             buy_frog_energy(player);
         } else if (choice == "big_potion") {
-            buy_item(player, "Big Health Potion", 40);
+            buy_item(player, "Big Health Potion", 95);
         } else if (choice == "royal_croak") {
-            buy_frog_attack(player, stock, "Royal Croak Sheet Music", 35, "Royal Croak");
+            buy_frog_attack(player, stock, "Royal Croak Sheet Music", 125, "Royal Croak");
         } else if (choice == "snack_break") {
-            buy_frog_attack(player, stock, "Snack Break Cookbook", 30, "Snack Break");
+            buy_frog_attack(player, stock, "Snack Break Cookbook", 110, "Snack Break");
         } else if (choice == "moon_leap") {
-            buy_frog_attack(player, stock, "Moon Leap Manual", 45, "Moon Leap");
+            buy_frog_attack(player, stock, "Moon Leap Manual", 165, "Moon Leap");
         } else if (choice == "golden_fly") {
-            buy_frog_training(player, stock, "Golden Fly Protein", 50, 5, 5);
+            buy_frog_training(player, stock, "Golden Fly Protein", 180, 5, 5);
         } else if (choice == "dragonfly_dive") {
-            buy_frog_attack(player, stock, "Dragonfly Tactics", 60, "Dragonfly Dive");
+            buy_frog_attack(player, stock, "Dragonfly Tactics", 240, "Dragonfly Dive");
         } else if (choice == "phoenix_feather") {
-            buy_stocked_item(player, stock, "Phoenix Feather", 55);
+            buy_stocked_item(player, stock, "Phoenix Feather", 180);
         } else if (choice == "dragon_shield") {
-            buy_equipment(player, stock, "Dragon Scale Shield", 70, "armor", 8);
+            buy_equipment(player, stock, "Dragon Scale Shield", 220, "armor", 8);
         } else if (choice == "leave") {
             say("\nYou leave the store.");
             print_stats(player);
@@ -1431,69 +1485,72 @@ void run_shop(Player& player, std::unordered_map<std::string, bool>& stock, bool
 
     while (true) {
         std::vector<MenuOption> options = {
-            {"1", "Arcane Blast", "arcane", money_text(20) + " - " + spells().at("Arcane Blast").description, {"arcane", "arcane blast", "spell 1"}, stock["Arcane Blast"], price_status(player, 20, !stock["Arcane Blast"], "learned")},
-            {"2", "Small Health Potion", "small_potion", money_text(15) + " - heals 15 health", {"small", "small potion", "health potion", "potion"}, true, price_status(player, 15)},
-            {"3", "Thunderstorm", "thunderstorm", money_text(40) + " - " + spells().at("Thunderstorm").description, {"thunder", "thunderstorm", "spell 3"}, stock["Thunderstorm"], price_status(player, 40, !stock["Thunderstorm"], "learned")},
-            {"4", "Restoration Incantation", "restoration", money_text(30) + " - " + spells().at("Restoration Incantation").description, {"restore", "restoration", "heal spell", "spell 4"}, stock["Restoration Incantation"], price_status(player, 30, !stock["Restoration Incantation"], "learned")},
-            {"5", "Add Mana", "mana", money_text(1) + " = +1 max mana", {"mana", "add mana", "buy mana"}, true, player.money ? "spend any amount" : "no money"},
+            {"1", "Arcane Blast", "arcane", money_text(45) + " - " + spells().at("Arcane Blast").description, {"arcane", "arcane blast", "spell 1"}, stock["Arcane Blast"], price_status(player, 45, !stock["Arcane Blast"], "learned")},
+            {"2", "Small Health Potion", "small_potion", money_text(28) + " - heals 15 health", {"small", "small potion", "health potion", "potion"}, true, price_status(player, 28)},
+            {"3", "Thunderstorm", "thunderstorm", money_text(90) + " - " + spells().at("Thunderstorm").description, {"thunder", "thunderstorm", "spell 3"}, stock["Thunderstorm"], price_status(player, 90, !stock["Thunderstorm"], "learned")},
+            {"4", "Restoration Incantation", "restoration", money_text(75) + " - " + spells().at("Restoration Incantation").description, {"restore", "restoration", "heal spell", "spell 4"}, stock["Restoration Incantation"], price_status(player, 75, !stock["Restoration Incantation"], "learned")},
+            {"5", "Add Mana", "mana", money_text(4) + " = +1 max mana", {"mana", "add mana", "buy mana"}, true, player.money ? "spend any amount" : "no money"},
+            {"6", "Mana Flask", "mana_flask", money_text(60) + " - recover 35 mana now", {"flask", "mana flask", "refill"}, true, price_status(player, 60)},
         };
 
         if (advanced) {
-            options.push_back({"6", "Big Health Potion", "big_potion", money_text(40) + " - restores full health", {"big", "big potion", "full potion"}, true, price_status(player, 40)});
-            options.push_back({"7", "Glorious Helmet", "helmet", money_text(50) + " - +5 armor", {"helmet", "armor"}, stock["Glorious Helmet"], price_status(player, 50, !stock["Glorious Helmet"], "owned")});
-            options.push_back({"8", "Mage Boots", "boots", money_text(35) + " - +3 spell damage", {"boots", "mage boots", "damage"}, stock["Mage Boots"], price_status(player, 35, !stock["Mage Boots"], "owned")});
-            options.push_back({"9", "Frost Nova", "frost_nova", money_text(35) + " - " + spells().at("Frost Nova").description, {"frost", "frost nova", "spell 9"}, stock["Frost Nova"], price_status(player, 35, !stock["Frost Nova"], "learned")});
-            options.push_back({"10", "Crystal Sword", "crystal_sword", money_text(45) + " - +7 basic attack damage", {"sword", "crystal sword", "weapon"}, stock["Crystal Sword"], price_status(player, 45, !stock["Crystal Sword"], "owned")});
-            options.push_back({"11", "Phoenix Feather", "phoenix_feather", money_text(55) + " - revives you once in combat", {"phoenix", "feather", "revive"}, stock["Phoenix Feather"], price_status(player, 55, !stock["Phoenix Feather"], "owned")});
+            options.push_back({"7", "Big Health Potion", "big_potion", money_text(95) + " - restores full health", {"big", "big potion", "full potion"}, true, price_status(player, 95)});
+            options.push_back({"8", "Glorious Helmet", "helmet", money_text(140) + " - +5 armor", {"helmet", "armor"}, stock["Glorious Helmet"], price_status(player, 140, !stock["Glorious Helmet"], "owned")});
+            options.push_back({"9", "Mage Boots", "boots", money_text(130) + " - +3 spell damage", {"boots", "mage boots", "damage"}, stock["Mage Boots"], price_status(player, 130, !stock["Mage Boots"], "owned")});
+            options.push_back({"10", "Frost Nova", "frost_nova", money_text(120) + " - " + spells().at("Frost Nova").description, {"frost", "frost nova", "spell 9"}, stock["Frost Nova"], price_status(player, 120, !stock["Frost Nova"], "learned")});
+            options.push_back({"11", "Crystal Sword", "crystal_sword", money_text(160) + " - +8 basic attack damage", {"sword", "crystal sword", "weapon"}, stock["Crystal Sword"], price_status(player, 160, !stock["Crystal Sword"], "owned")});
+            options.push_back({"12", "Phoenix Feather", "phoenix_feather", money_text(180) + " - revives you once in combat", {"phoenix", "feather", "revive"}, stock["Phoenix Feather"], price_status(player, 180, !stock["Phoenix Feather"], "owned")});
             if (legendary) {
-                options.push_back({"12", "Solar Beam", "solar_beam", money_text(60) + " - " + spells().at("Solar Beam").description, {"solar", "solar beam", "spell 12"}, stock["Solar Beam"], price_status(player, 60, !stock["Solar Beam"], "learned")});
-                options.push_back({"13", "Life Bloom", "life_bloom", money_text(45) + " - " + spells().at("Life Bloom").description, {"life", "life bloom", "heal spell"}, stock["Life Bloom"], price_status(player, 45, !stock["Life Bloom"], "learned")});
-                options.push_back({"14", "Dragon Scale Shield", "dragon_shield", money_text(70) + " - +8 armor", {"shield", "dragon shield", "dragon scale"}, stock["Dragon Scale Shield"], price_status(player, 70, !stock["Dragon Scale Shield"], "owned")});
-                options.push_back({"15", "Star Cloak", "star_cloak", money_text(65) + " - +5 spell damage", {"cloak", "star cloak"}, stock["Star Cloak"], price_status(player, 65, !stock["Star Cloak"], "owned")});
-                options.push_back({"16", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+                options.push_back({"13", "Solar Beam", "solar_beam", money_text(240) + " - " + spells().at("Solar Beam").description, {"solar", "solar beam", "spell 12"}, stock["Solar Beam"], price_status(player, 240, !stock["Solar Beam"], "learned")});
+                options.push_back({"14", "Life Bloom", "life_bloom", money_text(210) + " - " + spells().at("Life Bloom").description, {"life", "life bloom", "heal spell"}, stock["Life Bloom"], price_status(player, 210, !stock["Life Bloom"], "learned")});
+                options.push_back({"15", "Dragon Scale Shield", "dragon_shield", money_text(220) + " - +8 armor", {"shield", "dragon shield", "dragon scale"}, stock["Dragon Scale Shield"], price_status(player, 220, !stock["Dragon Scale Shield"], "owned")});
+                options.push_back({"16", "Star Cloak", "star_cloak", money_text(230) + " - +5 spell damage", {"cloak", "star cloak"}, stock["Star Cloak"], price_status(player, 230, !stock["Star Cloak"], "owned")});
+                options.push_back({"17", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
             } else {
-                options.push_back({"12", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+                options.push_back({"13", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
             }
         } else {
-            options.push_back({"6", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
+            options.push_back({"7", "Leave store", "leave", "", {"leave", "exit", "back", "q"}});
         }
 
         std::ostringstream subtitle;
-        subtitle << "Gold: " << money_text(player.money)
+        subtitle << "Whoop Nickels: " << money_text(player.money)
                  << " | Health: " << health_text(player.health, player.health_max)
                  << " | Mana: " << mana_text(player.mana, player.mana_max);
         std::string choice = choose_menu("Shop Menu", options, "Shop choice: ", subtitle.str());
 
         if (choice == "arcane") {
-            buy_spell(player, stock, "Arcane Blast", 20);
+            buy_spell(player, stock, "Arcane Blast", 45);
         } else if (choice == "small_potion") {
-            buy_item(player, "Small Health Potion", 15);
+            buy_item(player, "Small Health Potion", 28);
         } else if (choice == "thunderstorm") {
-            buy_spell(player, stock, "Thunderstorm", 40);
+            buy_spell(player, stock, "Thunderstorm", 90);
         } else if (choice == "restoration") {
-            buy_spell(player, stock, "Restoration Incantation", 30);
+            buy_spell(player, stock, "Restoration Incantation", 75);
         } else if (choice == "mana") {
             buy_mana(player);
+        } else if (choice == "mana_flask") {
+            buy_mana_flask(player);
         } else if (choice == "big_potion") {
-            buy_item(player, "Big Health Potion", 40);
+            buy_item(player, "Big Health Potion", 95);
         } else if (choice == "helmet") {
-            buy_equipment(player, stock, "Glorious Helmet", 50, "armor", 5);
+            buy_equipment(player, stock, "Glorious Helmet", 140, "armor", 5);
         } else if (choice == "boots") {
-            buy_equipment(player, stock, "Mage Boots", 35, "extraDamage", 3);
+            buy_equipment(player, stock, "Mage Boots", 130, "extraDamage", 3);
         } else if (choice == "frost_nova") {
-            buy_spell(player, stock, "Frost Nova", 35);
+            buy_spell(player, stock, "Frost Nova", 120);
         } else if (choice == "crystal_sword") {
-            buy_equipment(player, stock, "Crystal Sword", 45, "weaponDamage", 7);
+            buy_equipment(player, stock, "Crystal Sword", 160, "weaponDamage", 8);
         } else if (choice == "phoenix_feather") {
-            buy_stocked_item(player, stock, "Phoenix Feather", 55);
+            buy_stocked_item(player, stock, "Phoenix Feather", 180);
         } else if (choice == "solar_beam") {
-            buy_spell(player, stock, "Solar Beam", 60);
+            buy_spell(player, stock, "Solar Beam", 240);
         } else if (choice == "life_bloom") {
-            buy_spell(player, stock, "Life Bloom", 45);
+            buy_spell(player, stock, "Life Bloom", 210);
         } else if (choice == "dragon_shield") {
-            buy_equipment(player, stock, "Dragon Scale Shield", 70, "armor", 8);
+            buy_equipment(player, stock, "Dragon Scale Shield", 220, "armor", 8);
         } else if (choice == "star_cloak") {
-            buy_equipment(player, stock, "Star Cloak", 65, "extraDamage", 5);
+            buy_equipment(player, stock, "Star Cloak", 230, "extraDamage", 5);
         } else if (choice == "leave") {
             say("\nYou leave the store.");
             print_stats(player);
@@ -1523,17 +1580,23 @@ std::vector<std::string> read_vector(std::ifstream& in) {
 
 void normalize_player(Player& player) {
     player.name = trim(player.name).empty() ? "Adventurer" : trim(player.name);
-    if (player.frog_energy_max <= 0) {
-        player.frog_energy_max = 25;
-    }
-    if (player.frog_energy <= 0) {
-        player.frog_energy = player.frog_energy_max;
-    }
     if (!has_item(player, "Magic Wand") && has_item(player, "Magical Chocolate Frog")) {
         activate_frog_partner(player);
     }
-    if (player.frog_mode && player.frog_attacks.empty()) {
-        add_frog_attack(player, "Tongue Slap");
+    if (player.frog_mode) {
+        if (player.frog_energy_max <= 0) {
+            player.frog_energy_max = 25;
+        }
+        if (player.frog_energy <= 0) {
+            player.frog_energy = player.frog_energy_max;
+        }
+        player.frog_power = std::max(player.frog_power, 4);
+        if (player.frog_attacks.empty()) {
+            add_frog_attack(player, "Tongue Slap");
+        }
+    } else {
+        player.frog_energy = std::max(0, player.frog_energy);
+        player.frog_energy_max = std::max(0, player.frog_energy_max);
     }
 }
 
@@ -1623,6 +1686,18 @@ bool autosave_state(const State& state) {
     return true;
 }
 
+void autosave_tick() {
+    if (!active_autosave_state || autosave_running) {
+        return;
+    }
+    autosave_running = true;
+    try {
+        save_state(*active_autosave_state);
+    } catch (const std::exception&) {
+    }
+    autosave_running = false;
+}
+
 State load_state_interactive() {
     while (true) {
         std::string choice = choose_menu("Load Game", {
@@ -1645,6 +1720,16 @@ State load_state_interactive() {
             say(std::string("\nLoad failed: ") + exc.what());
         }
     }
+}
+
+void extra_fight(Player& player, const std::string& monster_name, const std::string& intro, const std::string& run_text) {
+    say("\n" + intro);
+    if (fight_or_run() == "run") {
+        say("\n" + run_text);
+        game_over(player);
+    }
+    spell_fight(monster_name, player);
+    offer_potions(player);
 }
 
 void intro_scene(Player& player) {
@@ -1712,6 +1797,12 @@ void locked_door_scene(Player& player) {
         say("\nYou say Lockio Reducto. The door opens and you find " + money_text(amount) + ".");
     }
     print_stats(player);
+    extra_fight(
+        player,
+        "gate rat",
+        "The noise wakes a gate rat with opinions about trespassing.",
+        "The gate rat follows your shoelaces and wins."
+    );
 }
 
 void first_goblin_scene(Player& player) {
@@ -1752,6 +1843,12 @@ void village_scene(Player& player, std::unordered_map<std::string, bool>& shop_s
         game_over(player);
     }
     spell_fight("troll", player);
+    extra_fight(
+        player,
+        "smoke imp",
+        "A smoke imp crawls out of the village chimney and starts throwing sparks.",
+        "You run through the smoke and smack directly into a fence."
+    );
 
     say("\nA villager says, \"Thank you for saving our village.\"");
     say("\"Take this Big Health Potion. It will restore your health.\"");
@@ -1774,6 +1871,12 @@ void village_scene(Player& player, std::unordered_map<std::string, bool>& shop_s
     }
     spell_fight("skeleton", player);
     offer_potions(player);
+    extra_fight(
+        player,
+        "curse candle",
+        "The village shrine candle grows teeth and blocks the road.",
+        "The candle waddles after you. Slowly. Somehow still fast enough."
+    );
     std::string whisper = normalize_choice(ask("\nBefore you leave, the cobblestones seem to whisper. Type what you heard or press Enter: "));
     if (whisper == "listen") {
         say("\nA loose brick slides aside and reveals a narrow ladder.");
@@ -1792,6 +1895,12 @@ void forest_scene(Player& player, std::unordered_map<std::string, bool>& shop_st
     }
     spell_fight("werewolf", player);
     offer_potions(player);
+    extra_fight(
+        player,
+        "bramble wolf",
+        "The bushes shake, then become a second wolf made mostly of thorns.",
+        "You sprint into the brambles and immediately regret the shortcut."
+    );
 
     say("\nFarther down the trail, a goblin jumps into the path.");
     if (fight_or_run() == "run") {
@@ -1800,6 +1909,12 @@ void forest_scene(Player& player, std::unordered_map<std::string, bool>& shop_st
     }
     spell_fight("goblin", player);
     offer_potions(player);
+    extra_fight(
+        player,
+        "treasure mimic",
+        "A treasure chest sits in the road. It smiles before you can.",
+        "The chest runs faster than a chest should legally run."
+    );
 
     say("\nAt the forest edge, Miss Costalot waves you over to her traveling cart.");
     run_shop(player, shop_stock, true);
@@ -1855,6 +1970,12 @@ void witch_scene(Player& player) {
     }
     spell_fight("witch", player);
     offer_potions(player);
+    extra_fight(
+        player,
+        "curse candle",
+        "The witch's last candle hops down from a shelf and tries to finish the curse.",
+        "The candle stamps out your escape plan with tiny wax feet."
+    );
 }
 
 void mountain_pass_scene(Player& player) {
@@ -1866,6 +1987,12 @@ void mountain_pass_scene(Player& player) {
     }
 
     spell_fight("ice goblin", player);
+    extra_fight(
+        player,
+        "snow bat",
+        "A snow bat drops from the pass marker and shakes frost from its wings.",
+        "You run downhill; the snow bat takes the express route."
+    );
     int reward = random_int(35, 50);
     player.money += reward;
     player.backpack.push_back("Moon Cheese");
@@ -1885,6 +2012,12 @@ void moonlit_market_scene(Player& player, std::unordered_map<std::string, bool>&
         game_over(player);
     }
     spell_fight("shadow knight", player);
+    extra_fight(
+        player,
+        "receipt wraith",
+        "The knight's dropped receipt unfolds into a very angry wraith.",
+        "The receipt wraith charges a late fee on your escape."
+    );
     player.money += 30;
     say("\nThe shadow knight drops " + money_text(30) + " and a note that says: please stop Lord Dreadbiscuit.");
     print_stats(player);
@@ -1904,6 +2037,12 @@ void vampire_castle_scene(Player& player) {
     }
 
     spell_fight("vampire", player);
+    extra_fight(
+        player,
+        "basement bat",
+        "The castle basement answers the noise with an even smaller, meaner bat.",
+        "You trip over a cape rack. The bat accepts the assist."
+    );
     player.backpack.push_back("Silver Key of Mild Concern");
     player.money += 40;
     say("\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus " + money_text(40) + ".");
@@ -1921,6 +2060,12 @@ void false_throne_scene(Player& player, std::unordered_map<std::string, bool>& s
     }
 
     spell_fight("shadow knight", player);
+    extra_fight(
+        player,
+        "sugar golem",
+        "The cookie throne melts into a sugar golem with fists like bakery bricks.",
+        "The hallway becomes syrup under your boots."
+    );
     int reward = random_int(20, 35);
     player.money += reward;
     say("\nBehind the false throne, you find " + money_text(reward) + " and a stairway that goes down.");
@@ -1937,6 +2082,12 @@ void clocktower_scene(Player& player, std::unordered_map<std::string, bool>& sho
         game_over(player);
     }
     spell_fight("shadow knight", player);
+    extra_fight(
+        player,
+        "rust rat",
+        "A gear hatch opens and another rust rat skitters across the clock face.",
+        "The tower ticks your escape route closed."
+    );
     player.money += 20;
     player.backpack.push_back("Clockwork Cog");
     say("\nThe sentinel drops a Clockwork Cog and the tower keeps turning anyway.");
@@ -1954,7 +2105,7 @@ void well_scene(Player& player) {
     }
     player.backpack.push_back("Well Water");
     player.money += 7;
-    say("\nA bucket rises with seven coins and a bottle of cold well water.");
+    say("\nA bucket rises with " + money_text(7) + " and a bottle of cold well water.");
     print_stats(player);
 }
 
@@ -1967,9 +2118,15 @@ void underkeep_scene(Player& player) {
     }
 
     spell_fight("ogre", player);
+    extra_fight(
+        player,
+        "rust rat",
+        "A rust rat drops from the pipes and starts chewing the map.",
+        "You run into a pipe maze and the rust rat knows every pipe."
+    );
     player.backpack.push_back("Ancient Map Fragment");
     player.money += 25;
-    say("\nThe ogre drops an Ancient Map Fragment and a small pouch of coins.");
+    say("\nThe ogre drops an Ancient Map Fragment and a small pouch of Whoop Nickels.");
     say("The fragment points deeper underground, because of course it does.");
     print_stats(player);
     offer_potions(player);
@@ -1985,6 +2142,12 @@ void dragon_gate_scene(Player& player, std::unordered_map<std::string, bool>& sh
     say("They call their shop The Dragon Forge and offer one last chance to gear up.");
     run_shop(player, shop_stock, true, true);
 
+    extra_fight(
+        player,
+        "glass cobra",
+        "A glass cobra uncoils from the gate hinges and reflects your worst angle.",
+        "The cobra turns the gate into a mirror maze."
+    );
     say("\nWhen you unlock the gate, a crystal dragon wakes up and sneezes rainbows everywhere.");
     if (fight_or_run("\nDo you fight the crystal dragon or run? ") == "run") {
         say("\nYou run. The dragon thinks this is fetch.");
@@ -1992,6 +2155,12 @@ void dragon_gate_scene(Player& player, std::unordered_map<std::string, bool>& sh
     }
 
     spell_fight("crystal dragon", player);
+    extra_fight(
+        player,
+        "crown wraith",
+        "The dragon's roar shakes a crown-shaped wraith out of the ceiling.",
+        "The wraith declares your retreat illegal."
+    );
     player.backpack.push_back("Dragon Scale Chip");
     player.money += 60;
     say("\nThe dragon bows, gives you a Dragon Scale Chip, and pushes " + money_text(60) + " into your hands.");
@@ -2051,7 +2220,7 @@ void postgame_status(const Player& player) {
             unlocked.push_back(item);
         }
     }
-    say("\nMoney: " + money_text(player.money));
+    say("\nWhoop Nickels: " + money_text(player.money));
     if (unlocked.empty()) {
         say("Settlement: nothing built yet");
     } else {
@@ -2226,6 +2395,7 @@ void finish_game(const Player& player) {
     say("\nGood job, " + player.name + ", you have completed the game.");
     say("\nCredits: Adventure Game by Thunderstruck7 and Lord Funion.");
     std::cout << "\n" << term::bright_yellow("THE END") << "\nYou finished with " << money_text(player.money) << ".\n";
+    autosave_tick();
 }
 
 bool checkpoint_menu(State& state) {
@@ -2269,6 +2439,7 @@ bool checkpoint_menu(State& state) {
 }
 
 void run_story(State state) {
+    AutosaveScope autosave_scope(state);
     while (true) {
         std::string scene_id = state.next_scene;
         if (scene_id == FINISHED_SCENE) {
@@ -2287,7 +2458,7 @@ void run_story(State state) {
         }
 
         if (autosave_state(state)) {
-            say("\nCheckpoint autosaved locally.");
+            say("\nAutosaved.");
         }
     }
 }

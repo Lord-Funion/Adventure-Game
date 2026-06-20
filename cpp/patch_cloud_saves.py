@@ -441,8 +441,8 @@ def main() -> int:
     )
     text = require_replace(
         text,
-        '        if (autosave_state(state)) {\n            say("\\nCheckpoint autosaved locally.");\n        }\n',
-        '        if (autosave_state(state)) {\n            std::string message = "\\nCheckpoint autosaved locally.";\n            if (cloud_autosync(state)) {\n                message += " Cloud synced.";\n            }\n            say(message);\n        }\n',
+        '        if (autosave_state(state)) {\n            say("\\nAutosaved.");\n        }\n',
+        '        if (autosave_state(state)) {\n            std::string message = "\\nAutosaved.";\n            if (cloud_autosync(state)) {\n                message += " Cloud synced.";\n            }\n            say(message);\n        }\n',
     )
     text = require_replace(
         text,
