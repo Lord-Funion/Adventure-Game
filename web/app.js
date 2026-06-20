@@ -8,6 +8,7 @@
   const DEFAULT_API_URL = "https://lordfunion.dev/adventure-api";
   const BASIC_DAMAGE = 4;
   const STATUS_DAMAGE = 5;
+  const OUTPUT_DELAY_MS = 280;
   const FINISHED_SCENE = "finished";
   const SCENE_ORDER = [
     "intro",
@@ -288,6 +289,10 @@
     return values[Math.floor(Math.random() * values.length)];
   }
 
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   function normalizeChoice(value) {
     return value.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
   }
@@ -547,6 +552,18 @@
       this.terminal = terminal;
       this.activeState = null;
       this.autosaveRunning = false;
+      this.outputQueue = Promise.resolve();
+      this.quickMenuRunning = false;
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "~" || !this.activeState || this.quickMenuRunning) {
+          return;
+        }
+        if (!this.terminal.activePrompt) {
+          return;
+        }
+        event.preventDefault();
+        this.terminal.submitActivePrompt("~");
+      });
     }
 
     async start() {
@@ -585,22 +602,68 @@
     }
 
     say(message) {
-      this.terminal.appendLine(message);
-      this.autosaveAfterOutput();
+      this.queueOutput(() => this.terminal.appendLine(message));
     }
 
     sayParts(parts) {
-      this.terminal.appendLine(parts);
-      this.autosaveAfterOutput();
+      this.queueOutput(() => this.terminal.appendLine(parts));
     }
 
     sayClickableParts(parts, submitValue, disabled = false) {
-      this.terminal.appendClickableLine(parts, submitValue, disabled);
-      this.autosaveAfterOutput();
+      this.queueOutput(() => this.terminal.appendClickableLine(parts, submitValue, disabled));
     }
 
     async ask(prompt, options = {}) {
-      return this.terminal.ask(prompt, options);
+      while (true) {
+        await this.flushOutput();
+        const value = await this.terminal.ask(prompt, options);
+        if (normalizeChoice(value) === "~") {
+          await this.quickMenu();
+          continue;
+        }
+        return value;
+      }
+    }
+
+    queueOutput(writeLine) {
+      this.outputQueue = this.outputQueue.then(async () => {
+        writeLine();
+        this.autosaveAfterOutput();
+        await sleep(OUTPUT_DELAY_MS);
+      });
+      return this.outputQueue;
+    }
+
+    async flushOutput() {
+      await this.outputQueue;
+    }
+
+    async quickMenu() {
+      if (!this.activeState) {
+        this.say("\nNo stats are available right now.");
+        await this.flushOutput();
+        return;
+      }
+      if (this.quickMenuRunning) {
+        this.say("\nYou are already in the ~ menu.");
+        await this.flushOutput();
+        return;
+      }
+      this.quickMenuRunning = true;
+      try {
+        const choice = await this.chooseMenu("~ Menu", [
+          { key: "1", label: "Player Stats", value: "stats", aliases: ["stats", "status"] },
+          { key: "2", label: "Back", value: "back", aliases: ["back", "return", "cancel"] },
+        ], {
+          prompt: "~ menu choice: ",
+          subtitle: "Opened with ~.",
+        });
+        if (choice === "stats") {
+          this.printStats(this.activeState.player);
+        }
+      } finally {
+        this.quickMenuRunning = false;
+      }
     }
 
     divider(title) {
@@ -1474,7 +1537,6 @@
           { key: "2", label: "Save Game", value: "save", aliases: ["save", "s"] },
           { key: "3", label: "Load Game", value: "load", aliases: ["load", "l"] },
           { key: "4", label: "Cloud Saves", value: "cloud", aliases: ["cloud", "online", "sync"] },
-          { key: "5", label: "Player Stats", value: "stats", aliases: ["stats", "status"] },
         ], {
           prompt: "Checkpoint choice: ",
           subtitle,
@@ -1495,8 +1557,6 @@
           if (loadedState !== null) {
             return loadedState;
           }
-        } else if (choice === "stats") {
-          this.printStats(state.player);
         }
       }
     }
@@ -1567,7 +1627,6 @@
         await this.introScene(player);
       } else if (sceneId === "wizard") {
         await this.wizardScene(player);
-        this.printStats(player);
       } else if (sceneId === "locked_door") {
         await this.lockedDoorScene(player);
       } else if (sceneId === "first_goblin") {
@@ -1782,7 +1841,6 @@
       }
 
       player.backpack.push("Magical Chocolate Frog");
-      this.printStats(player);
     }
 
     async wizardScene(player) {
@@ -1803,7 +1861,6 @@
         this.say("\nRumblerod shrugs and continues down the path.");
         this.activateFrogPartner(player);
         this.say("The frog hops onto your shoulder and learns Tongue Slap out of spite.");
-        this.printStats(player);
         return;
       }
 
@@ -1843,7 +1900,6 @@
       } else {
         this.sayParts(["\nYou say Lockio Reducto. The door opens and you find ", ...this.moneyParts(amount), "."]);
       }
-      this.printStats(player);
     }
 
     async firstGoblinScene(player) {
@@ -1873,7 +1929,6 @@
         this.say("It drops a page from a spell book.");
         this.say("You learned Fireball.");
       }
-      this.printStats(player);
       await this.extraFight(
         player,
         "gate rat",
@@ -1900,16 +1955,15 @@
       this.say('\nA villager says, "Thank you for saving our village."');
       this.say('"Take this Big Health Potion. It will restore your health."');
       player.backpack.push("Big Health Potion");
-      this.printStats(player);
       await this.offerPotions(player);
 
-      const enterStore = await this.yesNo("\nYou see Harold Sellsalot's General Store. Go inside? (yes/no): ");
+      const enterStore = await this.yesNo("\nYou see Gnome Depot, Harold Sellsalot's shop. Go inside? (yes/no): ");
       if (enterStore === "no") {
         this.say("\nA skeleton archer outside the village shoots you.");
         this.gameOver(player);
       }
 
-      this.say("\nHarold welcomes you into the store.");
+      this.say("\nHarold welcomes you into Gnome Depot.");
       await this.runShop(player, shopStock);
 
       this.say("\nYou leave the store and encounter a skeleton.");
@@ -2006,7 +2060,6 @@
       const amount = randomInt(15, 25);
       player.money += amount;
       this.sayParts(["\nYou find ", ...this.moneyParts(amount), " in the chest."]);
-      this.printStats(player);
       await this.offerPotions(player);
     }
 
@@ -2046,7 +2099,6 @@
       player.money += reward;
       player.backpack.push("Moon Cheese");
       this.sayParts(["\nThe ice goblin's lunchbox pops open. You find ", ...this.moneyParts(reward), " and some Moon Cheese."]);
-      this.printStats(player);
       await this.offerPotions(player);
     }
 
@@ -2069,7 +2121,6 @@
       );
       player.money += 30;
       this.sayParts(["\nThe shadow knight drops ", ...this.moneyParts(30), " and a note that says: please stop Lord Dreadbiscuit."]);
-      this.printStats(player);
       await this.offerPotions(player);
       if ((await this.ask("\nA vendor drops a receipt. Type the first word printed in tiny ink, or press Enter: ")).trim().toLowerCase() === "clock") {
         this.say("\nThe receipt opens a seam in the market wall.");
@@ -2096,7 +2147,6 @@
       player.money += 40;
       this.sayParts(["\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus ", ...this.moneyParts(40), "."]);
       this.say("The key is real, but the real castle keeps moving farther away.");
-      this.printStats(player);
       await this.offerPotions(player);
     }
 
@@ -2118,7 +2168,6 @@
       const reward = randomInt(20, 35);
       player.money += reward;
       this.sayParts(["\nBehind the false throne, you find ", ...this.moneyParts(reward), " and a stairway that goes down."]);
-      this.printStats(player);
       await this.offerPotions(player);
       await this.runShop(player, shopStock, true);
     }
@@ -2140,7 +2189,6 @@
       player.money += 20;
       player.backpack.push("Clockwork Cog");
       this.say("\nThe sentinel drops a Clockwork Cog and the tower keeps turning anyway.");
-      this.printStats(player);
       await this.offerPotions(player);
       await this.runShop(player, shopStock, true);
     }
@@ -2156,7 +2204,6 @@
       player.backpack.push("Well Water");
       player.money += 7;
       this.sayParts(["\nA bucket rises with ", ...this.moneyParts(7), " and a bottle of cold well water."]);
-      this.printStats(player);
     }
 
     async underkeepScene(player) {
@@ -2178,7 +2225,6 @@
       player.money += 25;
       this.say("\nThe ogre drops an Ancient Map Fragment and a small pouch of Whoop Nickels.");
       this.say("The fragment points deeper underground, because of course it does.");
-      this.printStats(player);
       await this.offerPotions(player);
       const deeper = (await this.ask("\nThe tunnel breathes once. Type 'deeper' to keep going, or press Enter: ")).trim().toLowerCase();
       if (deeper === "deeper") {
@@ -2216,7 +2262,6 @@
       player.money += 60;
       this.sayParts(["\nThe dragon bows, gives you a Dragon Scale Chip, and pushes ", ...this.moneyParts(60), " into your hands."]);
       this.say("You are sure this must be the last thing. It is not the last thing.");
-      this.printStats(player);
       await this.offerPotions(player);
     }
 
@@ -2231,7 +2276,6 @@
       await this.spellFight("lord dreadbiscuit", player);
       this.say("\nLord Dreadbiscuit wobbles, crumbles, and apologizes to everyone he has inconvenienced.");
       this.say("Rumblerod appears from behind a curtain and insists he was helping invisibly the whole time.");
-      this.printStats(player);
     }
 
     sellScraps(player) {
@@ -2318,7 +2362,6 @@
         }
       }
 
-      this.printStats(player);
       return true;
     }
 
@@ -2693,7 +2736,6 @@
         player.frogEnergy = Math.min(player.frogEnergyMax, player.frogEnergy + 4);
       }
       this.sayParts(["You gained ", ...this.moneyParts(reward), ` and found a ${drop}.`]);
-      this.printStats(player);
     }
 
     gameOver(player) {
@@ -3096,7 +3138,6 @@
           this.buyEquipment(player, stock, "Dragon Scale Shield", 220, "armor", 8);
         } else if (choice === "leave") {
           this.say("\nYou leave the store.");
-          this.printStats(player);
           return;
         }
       }
@@ -3327,7 +3368,6 @@
           this.buyEquipment(player, stock, "Star Cloak", 230, "extraDamage", 5);
         } else if (choice === "leave") {
           this.say("\nYou leave the store.");
-          this.printStats(player);
           return;
         }
       }
