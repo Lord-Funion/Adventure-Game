@@ -20,6 +20,9 @@ PAUSES = {
     "scene": 0.95,
 }
 
+_AUTOSAVE_HOOK = None
+_AUTOSAVE_RUNNING = False
+
 SPEED_MULTIPLIERS = {
     "instant": 0.0,
     "fast": 0.55,
@@ -36,6 +39,26 @@ def _speed_multiplier():
 def pause(kind="line"):
     """Pause long enough for text to be readable without dragging."""
     time.sleep(PAUSES.get(kind, PAUSES["line"]) * _speed_multiplier())
+
+
+def set_autosave_hook(hook):
+    """Install a silent save callback used after story output."""
+    global _AUTOSAVE_HOOK
+
+    _AUTOSAVE_HOOK = hook
+
+
+def autosave_tick():
+    """Run the current autosave callback without letting it recurse."""
+    global _AUTOSAVE_RUNNING
+
+    if _AUTOSAVE_HOOK is None or _AUTOSAVE_RUNNING:
+        return
+    _AUTOSAVE_RUNNING = True
+    try:
+        _AUTOSAVE_HOOK()
+    finally:
+        _AUTOSAVE_RUNNING = False
 
 
 def _paint_plain_message(message, kind):
@@ -72,6 +95,7 @@ def say(message, kind="line"):
     """Print one story line, then wait for the requested pacing."""
     print(_paint_plain_message(message, kind))
     pause(kind)
+    autosave_tick()
 
 
 def ask(prompt):

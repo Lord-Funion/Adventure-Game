@@ -460,4 +460,5 @@ def ask_choice(prompt, choices, invalid):
 
 def money_text(amount):
     """Format money consistently across menus."""
-    return f"{Fore.LIGHTYELLOW_EX}${amount}{Style.RESET_ALL}"
+    label = "Whoop Nickel" if amount == 1 else "Whoop Nickels"
+    return f"{Fore.LIGHTYELLOW_EX}{amount} {label}{Style.RESET_ALL}"
