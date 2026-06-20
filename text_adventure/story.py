@@ -11,7 +11,7 @@ from pathlib import Path
 from . import cloud_saves
 from .combat import GameOver, game_over, spell_fight
 from .logo import show_startup_logo
-from .pacing import ask, say, set_autosave_hook
+from .pacing import ask, say, set_autosave_hook, set_quick_menu_hook
 from .player import activate_frog_partner, add_frog_attack, add_spell, create_player, offer_potions, print_stats
 from .save_system import (
     SaveError,
@@ -621,8 +621,7 @@ def _checkpoint_menu(state):
                 MenuOption("2", "Save Game", "save", aliases=("save", "s")),
                 MenuOption("3", "Load Game", "load", aliases=("load", "l")),
                 MenuOption("4", "Cloud Saves", "cloud", aliases=("cloud", "online", "sync")),
-                MenuOption("5", "Player Stats", "stats", aliases=("stats", "status")),
-                MenuOption("6", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
+                MenuOption("5", EXIT_LABEL, "exit", aliases=("exit", "quit", "q")),
             ],
             prompt="Checkpoint choice: ",
             subtitle=subtitle,
@@ -640,8 +639,6 @@ def _checkpoint_menu(state):
             loaded_state = _cloud_menu(state)
             if loaded_state is not None:
                 return loaded_state
-        elif choice == "stats":
-            print_stats(state["player"])
         elif choice == "exit":
             _exit_game()
 
@@ -651,7 +648,6 @@ def _run_scene(scene_id, player, shop_stock):
         intro_scene(player)
     elif scene_id == "wizard":
         wizard_scene(player)
-        print_stats(player)
     elif scene_id == "locked_door":
         locked_door_scene(player)
     elif scene_id == "first_goblin":
@@ -839,8 +835,23 @@ def _postgame_menu(player):
             _exit_game()
 
 
+def _quick_menu(state):
+    choice = choose_menu(
+        "~ Menu",
+        [
+            MenuOption("1", "Player Stats", "stats", aliases=("stats", "status")),
+            MenuOption("2", "Back", "back", aliases=("back", "return", "cancel")),
+        ],
+        prompt="~ menu choice: ",
+        subtitle="Opened with ~.",
+    )
+    if choice == "stats":
+        print_stats(state["player"])
+
+
 def _run_story(state):
     set_autosave_hook(lambda: _autosave_state(state, sync_cloud=False))
+    set_quick_menu_hook(lambda: _quick_menu(state))
     try:
         while True:
             scene_id = state["next_scene"]
@@ -863,6 +874,7 @@ def _run_story(state):
                 say(message, "quick")
     finally:
         set_autosave_hook(None)
+        set_quick_menu_hook(None)
 
 
 def _restart_menu():
@@ -992,7 +1004,6 @@ def intro_scene(player):
         say("The frog hops into your backpack anyway.", "beat")
 
     player["backpack"].append("Magical Chocolate Frog")
-    print_stats(player)
 
 
 def wizard_scene(player):
@@ -1013,7 +1024,6 @@ def wizard_scene(player):
         say("\nRumblerod shrugs and continues down the path.")
         activate_frog_partner(player)
         say("The frog hops onto your shoulder and learns Tongue Slap out of spite.", "beat")
-        print_stats(player)
         return
 
     player["backpack"].remove("Magical Chocolate Frog")
@@ -1047,7 +1057,6 @@ def locked_door_scene(player):
         )
     else:
         say(f"\nYou say Lockio Reducto. The door opens and you find {money_text(amount)}.", "beat")
-    print_stats(player)
 
 
 def first_goblin_scene(player):
@@ -1079,7 +1088,6 @@ def first_goblin_scene(player):
         add_spell(player, "Fireball")
         say("It drops a page from a spell book.", "beat")
         say("You learned Fireball.")
-    print_stats(player)
     _extra_fight(
         player,
         "gate rat",
@@ -1089,7 +1097,7 @@ def first_goblin_scene(player):
 
 
 def village_scene(player, shop_stock):
-    """Save the village, receive a potion, and visit Harold's shop."""
+    """Save the village, receive a potion, and visit Gnome Depot."""
     say("\nYou see a village nearby.")
     say("A troll is attacking the villagers.", "beat")
     if fight_or_run() == "run":
@@ -1106,7 +1114,6 @@ def village_scene(player, shop_stock):
     say('\nA villager says, "Thank you for saving our village."')
     say('"Take this Big Health Potion. It will restore your health."', "beat")
     player["backpack"].append("Big Health Potion")
-    print_stats(player)
     offer_potions(player)
 
     hidden = ask("\nBefore you leave, the cobblestones seem to whisper. Type what you heard or press Enter: ")
@@ -1116,12 +1123,12 @@ def village_scene(player, shop_stock):
     elif hidden.strip().lower() == "well":
         well_scene(player)
 
-    enter_store = yes_no("\nYou see Harold Sellsalot's General Store. Go inside? (yes/no): ")
+    enter_store = yes_no("\nYou see Gnome Depot, Harold Sellsalot's shop. Go inside? (yes/no): ")
     if enter_store == "no":
         say("\nA skeleton archer outside the village shoots you.", "beat")
         game_over(player)
 
-    say("\nHarold welcomes you into the store.")
+    say("\nHarold welcomes you into Gnome Depot.")
     run_shop(player, shop_stock)
 
     say("\nYou leave the store and encounter a skeleton.")
@@ -1204,7 +1211,6 @@ def twin_doors_scene(player):
     amount = random.randint(15, 25)
     player["money"] += amount
     say(f"\nYou find {money_text(amount)} in the chest.", "beat")
-    print_stats(player)
     offer_potions(player)
 
 
@@ -1244,7 +1250,6 @@ def mountain_pass_scene(player):
     player["money"] += reward
     player["backpack"].append("Moon Cheese")
     say(f"\nThe ice goblin's lunchbox pops open. You find {money_text(reward)} and some Moon Cheese.")
-    print_stats(player)
     offer_potions(player)
 
 
@@ -1267,7 +1272,6 @@ def moonlit_market_scene(player, shop_stock):
     )
     player["money"] += 30
     say(f"\nThe shadow knight drops {money_text(30)} and a note that says: please stop Lord Dreadbiscuit.")
-    print_stats(player)
     offer_potions(player)
     secret = ask("\nA vendor drops a receipt. Type the first word printed in tiny ink, or press Enter: ")
     if secret.strip().lower() == "clock":
@@ -1294,7 +1298,6 @@ def vampire_castle_scene(player):
     player["money"] += 40
     say(f"\nThe vampire turns into a bat and drops the Silver Key of Mild Concern plus {money_text(40)}.")
     say("The key is real, but the real castle keeps moving farther away.", "beat")
-    print_stats(player)
     offer_potions(player)
 
 
@@ -1316,7 +1319,6 @@ def false_throne_scene(player, shop_stock):
     reward = random.randint(20, 35)
     player["money"] += reward
     say(f"\nBehind the false throne, you find {money_text(reward)} and a stairway that goes down.")
-    print_stats(player)
     offer_potions(player)
     run_shop(player, shop_stock, advanced=True)
 
@@ -1340,7 +1342,6 @@ def underkeep_scene(player):
     player["money"] += 25
     say("\nThe ogre drops an Ancient Map Fragment and a small pouch of Whoop Nickels.")
     say("The fragment points deeper underground, because of course it does.", "beat")
-    print_stats(player)
     offer_potions(player)
     if ask("\nThe tunnel breathes once. Type 'deeper' to keep going, or press Enter: ").strip().lower() == "deeper":
         say("\nYou slip into a maintenance passage that should not exist.", "beat")
@@ -1365,7 +1366,6 @@ def clocktower_scene(player, shop_stock):
     player["money"] += 20
     player["backpack"].append("Clockwork Cog")
     say("\nThe sentinel drops a Clockwork Cog and the tower keeps turning anyway.")
-    print_stats(player)
     offer_potions(player)
     run_shop(player, shop_stock, advanced=True)
 
@@ -1381,7 +1381,6 @@ def well_scene(player):
     player["backpack"].append("Well Water")
     player["money"] += 7
     say(f"\nA bucket rises with {money_text(7)} and a bottle of cold well water.")
-    print_stats(player)
 
 
 def dragon_gate_scene(player, shop_stock):
@@ -1413,7 +1412,6 @@ def dragon_gate_scene(player, shop_stock):
     player["money"] += 60
     say(f"\nThe dragon bows, gives you a Dragon Scale Chip, and pushes {money_text(60)} into your hands.")
     say("You are sure this must be the last thing. It is not the last thing.", "beat")
-    print_stats(player)
     offer_potions(player)
 
 
@@ -1428,4 +1426,3 @@ def final_battle_scene(player):
     spell_fight("lord dreadbiscuit", player)
     say("\nLord Dreadbiscuit wobbles, crumbles, and apologizes to everyone he has inconvenienced.")
     say("Rumblerod appears from behind a curtain and insists he was helping invisibly the whole time.", "beat")
-    print_stats(player)

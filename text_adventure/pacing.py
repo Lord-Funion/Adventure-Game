@@ -14,14 +14,16 @@ from .terminal_colors import Fore, Style
 
 PAUSES = {
     "none": 0.0,
-    "quick": 0.18,
-    "line": 0.42,
-    "beat": 0.7,
-    "scene": 0.95,
+    "quick": 0.3,
+    "line": 0.75,
+    "beat": 1.15,
+    "scene": 1.45,
 }
 
 _AUTOSAVE_HOOK = None
 _AUTOSAVE_RUNNING = False
+_QUICK_MENU_HOOK = None
+_QUICK_MENU_RUNNING = False
 
 SPEED_MULTIPLIERS = {
     "instant": 0.0,
@@ -46,6 +48,34 @@ def set_autosave_hook(hook):
     global _AUTOSAVE_HOOK
 
     _AUTOSAVE_HOOK = hook
+
+
+def set_quick_menu_hook(hook):
+    """Install the in-game menu opened by typing '~' at a prompt."""
+    global _QUICK_MENU_HOOK
+
+    _QUICK_MENU_HOOK = hook
+
+
+def maybe_open_quick_menu(value):
+    """Return True when the value was handled as a quick-menu shortcut."""
+    global _QUICK_MENU_RUNNING
+
+    if " ".join(value.strip().split()) != "~":
+        return False
+    if _QUICK_MENU_HOOK is None:
+        say("\nNo stats are available right now.", "quick")
+        return True
+    if _QUICK_MENU_RUNNING:
+        say("\nYou are already in the ~ menu.", "quick")
+        return True
+
+    _QUICK_MENU_RUNNING = True
+    try:
+        _QUICK_MENU_HOOK()
+    finally:
+        _QUICK_MENU_RUNNING = False
+    return True
 
 
 def autosave_tick():
@@ -101,4 +131,8 @@ def say(message, kind="line"):
 def ask(prompt):
     """Read player input with normalized whitespace."""
     painted_prompt = prompt if "\033[" in prompt else f"{Fore.LIGHTCYAN_EX}{prompt}{Style.RESET_ALL}"
-    return " ".join(input(painted_prompt).strip().split())
+    while True:
+        value = " ".join(input(painted_prompt).strip().split())
+        if maybe_open_quick_menu(value):
+            continue
+        return value

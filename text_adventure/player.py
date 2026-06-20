@@ -173,5 +173,4 @@ def offer_potions(player):
             say("\nYou save your potions for later.", "quick")
             return False
 
-    print_stats(player)
     return True

@@ -4,7 +4,6 @@ import random
 
 from .data import FROG_ATTACKS, LOOT_DROPS, MONSTERS, SPELLS
 from .pacing import say
-from .player import print_stats
 from .terminal_colors import Fore, Style
 from .ui import MenuOption, choose_menu, money_text, stat_meter
 
@@ -289,7 +288,6 @@ def win_fight(monster_name, player):
     if player.get("frogMode"):
         player["frogEnergy"] = min(player["frogEnergyMax"], player["frogEnergy"] + 4)
     say(f"You gained {money_text(reward)} and found a {drop}.")
-    print_stats(player)
 
 
 def game_over(player):

@@ -2,7 +2,7 @@
 
 from .data import FROG_ATTACKS, SPELLS
 from .pacing import ask, say
-from .player import add_spell, print_stats, sell_scraps
+from .player import add_spell, sell_scraps
 from .ui import MenuOption, choose_menu, money_text, normalize_choice, stat_meter
 
 
@@ -418,5 +418,4 @@ def run_shop(player, stock, advanced=False, legendary=False):
             _buy_spell(player, stock, "Solar Beam", 240)
         elif choice == "leave":
             say("\nYou leave the store.", "quick")
-            print_stats(player)
             return
